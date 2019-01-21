@@ -297,6 +297,30 @@ function Login {
   }
 }
 
+function WaitJob {
+  param($jobs, $startTime, $timeout)
+
+  $ids = $jobs.foreach('id')
+  while ($true) {
+    $elapsed = ($(Get-Date) - $startTime).TotalSeconds
+    if ($elapsed -ge $Timeout) {
+      break
+    }
+    # TODO: optimize this
+    $runningJobCount = $(Get-Job -Id $ids).where({ $_.state -eq 'Running'}).Count
+    if ($runningJobCount -eq 0) {
+      break
+    }
+    $percent = $elapsed * 100 / $timeout
+    $doneJobCount = $jobs.Count - $runningJobCount
+    Write-Progress -PercentComplete $percent -Activity "Waiting for jobs to complete..." `
+      -CurrentOperation "Complete jobs: $($doneJobCount)/$($jobs.Count)"
+    Receive-Job $jobs
+    Start-Sleep 1
+  }
+  Receive-Job $jobs
+}
+
 function Add-AcmCluster {
   param(
     [Parameter(Mandatory = $true)]
@@ -312,6 +336,7 @@ function Add-AcmCluster {
     [int] $Timeout = 300
   )
 
+  $startTime = Get-Date
   Login
   Select-AzSubscription -SubscriptionId $SubscriptionId
 
@@ -336,8 +361,11 @@ function Add-AcmCluster {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Add-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
   }
 
-  Wait-Job -Timeout $Timeout -Job $jobs
+  WaitJob $jobs $startTime $Timeout
+
+  # Remove-Job somtimes don't return even with -Force
   # Remove-Job -Force -Job $jobs
+
   $jobs
 }
 
@@ -356,6 +384,7 @@ function Remove-AcmCluster {
     [int] $Timeout = 300
   )
 
+  $startTime = Get-Date
   Login
   Select-AzSubscription -SubscriptionId $SubscriptionId
 
@@ -379,7 +408,7 @@ function Remove-AcmCluster {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Remove-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
   }
 
-  Wait-Job -Timeout $Timeout -Job $jobs
+  WaitJob $jobs $startTime $Timeout
   Remove-Job -Force -Job $jobs
   $jobs
 }
