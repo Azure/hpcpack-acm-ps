@@ -1,4 +1,5 @@
 
+# TODO: need login?
 function Add-AcmVm {
   param(
     [Parameter(Mandatory = $true)]
@@ -53,6 +54,7 @@ function Add-AcmVm {
   }
 
   Write-Host "Install HpcAcmAgent for VM $($vm.Name)"
+  # TODO: Do not remove it if it is there.
   try {
     Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
   }
@@ -163,6 +165,7 @@ function Add-AcmVmScaleSet {
   }
 
   Write-Host "Install HpcAcmAgent for VM Scale Set $($vmss.Name)"
+  # TODO: Do not remove it if it is there.
   try {
     Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
     Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
@@ -435,3 +438,47 @@ function Test-AcmCluster {
   return ConvertFrom-JsonNewtonsoft $result.ToString()
 }
 
+# TODO: optional param: app name
+function Get-AcmAppInfo {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $ResourceGroup,
+
+    [Parameter(Mandatory = $true)]
+    [string] $SubscriptionId
+  )
+
+  $ErrorActionPreference = 'Stop'
+  Login
+  Select-AzSubscription -SubscriptionId $SubscriptionId
+  $app = $(Get-AzWebApp -ResourceGroupName $ResourceGroup)[0]
+  $config = Invoke-AzResourceAction -ApiVersion 2016-08-01 -Action list -ResourceGroupName $app.ResourceGroup -ResourceType Microsoft.Web/sites/config -ResourceName "$($app.Name)/authsettings" -Force
+  $auth = $config.properties
+  return @{
+    'IssuerUrl' = $auth.issuer
+    'ClientId' = $auth.clientId
+    'ClientSecret' = $auth.clientSecret
+    'ApiBasePoint' = "https://$($app.DefaultHostName)/v1"
+  }
+}
+
+function New-AcmTest {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $ResourceGroup,
+
+    [Parameter(Mandatory = $true)]
+    [string] $AcmResourceGroup,
+
+    [Parameter(Mandatory = $true)]
+    [string] $SubscriptionId
+  )
+
+  $ErrorActionPreference = 'Stop'
+  Write-Host "Adding cluster to ACM..."
+  Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
+  Write-Host "Getting ACM app info..."
+  $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
+  Write-Host "Testing cluster..."
+  Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] -ClientSecret $app['ClientSecret'] -ApiBasePoint $app['ApiBasePoint']
+}
