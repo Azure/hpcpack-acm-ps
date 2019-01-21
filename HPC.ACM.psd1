@@ -22,7 +22,7 @@ CompanyName = 'Microsoft'
 Copyright = '(c) 2019 Microsoft. All rights reserved.'
 
 # Description of the functionality provided by this module
-# Description = ''
+Description = 'Cmdlets for HPC ACM operations, including add/remove/test cluster of Azure VMs/VM scale sets to ACM service.'
 
 # Minimum version of the Windows PowerShell engine required by this module
 # PowerShellVersion = ''
