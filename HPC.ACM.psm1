@@ -311,14 +311,29 @@ function Wait-AcmJob {
     if ($runningJobCount -eq 0) {
       break
     }
+
     $percent = $elapsed * 100 / $timeout
     $doneJobCount = $jobs.Count - $runningJobCount
     Write-Progress -PercentComplete $percent -Activity "Waiting for jobs to complete..." `
       -CurrentOperation "Completed jobs: $($doneJobCount)/$($jobs.Count)"
-    Receive-Job $jobs
+
+    # NOTE: DO NOT simply
+    #
+    # Receive-Job $jobs
+    #
+    # because that will implicitly add the output to the return value and thus
+    # pollute the caller's return value.
+
+    $output = Receive-Job $jobs
+    if ($output) {
+      Write-Host $output
+    }
     Start-Sleep 1
   }
-  Receive-Job $jobs
+  $output = Receive-Job $jobs
+  if ($output) {
+    Write-Host $output
+  }
 }
 
 function Add-AcmCluster {
