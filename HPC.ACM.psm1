@@ -376,6 +376,7 @@ function Add-AcmCluster {
   }
 
   Wait-AcmJob $jobs $startTime $Timeout
+
   $ids = $jobs.foreach('Id')
   $retVal = @{
     Total = $vms.Count + $vmssSet.Count
@@ -406,7 +407,10 @@ function Remove-AcmCluster {
     [string] $AcmResourceGroup,
 
     [Parameter(Mandatory = $false)]
-    [int] $Timeout = 300
+    [int] $Timeout = 300,
+
+    [Parameter(Mandatory = $false)]
+    [bool] $RemoveJobs = $true
   )
 
   $startTime = Get-Date
@@ -434,10 +438,22 @@ function Remove-AcmCluster {
 
   Wait-AcmJob $jobs $startTime $Timeout
 
-  # Remove-Job somtimes don't return even with -Force
-  # Remove-Job -Force -Job $jobs
-
-  $jobs
+  $ids = $jobs.foreach('Id')
+  $retVal = @{
+    Total = $vms.Count + $vmssSet.Count
+    Completed = $jobs.where({ $_.State -eq 'Completed' }).Count - 1
+  }
+  if ($RemoveJobs) {
+    # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
+    Start-ThreadJob -ScriptBlock {
+      param($ids)
+      Remove-Job -Force -Id $ids
+    } -ArgumentList $ids | Out-Null
+  }
+  else {
+    $retVal['Jobs'] = $ids
+  }
+  return $retVal
 }
 
 function Wait-AcmDiagnosticJob {
