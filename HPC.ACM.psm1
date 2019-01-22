@@ -12,8 +12,6 @@ function Add-AcmVm {
     [string] $storageAccountRG
   )
 
-  $ErrorActionPreference = 'Stop'
-
   Write-Host "Enable MSI for VM $($vm.Name)"
   if ($vm.Identity -eq $null -or !($vm.Identity.Type -contains "SystemAssigned")) {
     Write-Host "Executing for VM $($vm.Name)"
@@ -123,8 +121,6 @@ function Add-AcmVmScaleSet {
     [Parameter(Mandatory = $true)]
     [string] $storageAccountRG
   )
-
-  $ErrorActionPreference = 'Stop'
 
   Write-Host "Enable MSI for VM Scale Set $($vmss.Name)"
   if ($vmss.Identity -eq $null -or !($vmss.Identity.Type -contains "SystemAssigned")) {
@@ -242,8 +238,6 @@ function Set-AcmClusterTag {
     [Parameter(Mandatory = $true)]
     [string] $StorageAccountRG
   )
-
-  $ErrorActionPreference = 'Stop'
 
   $rg = Get-AzResourceGroup -Name $ResourceGroup
   $tags = $rg.Tags
@@ -440,8 +434,6 @@ function Test-AcmCluster {
     [string] $ApiBasePoint
   )
 
-  $ErrorActionPreference = 'Stop'
-
   Write-Host "Connecting to Acm..."
   $conn = Connect-Acm -IssuerUrl $IssuerUrl -ClientId $ClientId -ClientSecret $ClientSecret -ApiBasePoint $ApiBasePoint
 
@@ -503,7 +495,6 @@ function New-AcmTest {
     [string] $SubscriptionId
   )
 
-  $ErrorActionPreference = 'Stop'
   Write-Host "Adding cluster to ACM..."
   Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
   Write-Host "Getting ACM app info..."
