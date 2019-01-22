@@ -348,7 +348,10 @@ function Add-AcmCluster {
     [string] $AcmResourceGroup,
 
     [Parameter(Mandatory = $false)]
-    [int] $Timeout = 300
+    [int] $Timeout = 300,
+
+    [Parameter(Mandatory = $false)]
+    [bool] $RemoveJobs = $true
   )
 
   $startTime = Get-Date
@@ -376,11 +379,22 @@ function Add-AcmCluster {
   }
 
   Wait-AcmJob $jobs $startTime $Timeout
-
-  # Remove-Job somtimes don't return even with -Force
-  # Remove-Job -Force -Job $jobs
-
-  $jobs
+  $ids = $jobs.foreach('Id')
+  $retVal = @{
+    Total = $vms.Count + $vmssSet.Count
+    Completed = $jobs.where({ $_.State -eq 'Completed' }).Count - 1
+  }
+  if ($RemoveJobs) {
+    # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
+    Start-ThreadJob -ScriptBlock {
+      param($ids)
+      Remove-Job -Force -Id $ids
+    } -ArgumentList $ids | Out-Null
+  }
+  else {
+    $retVal['Jobs'] = $ids
+  }
+  return $retVal
 }
 
 function Remove-AcmCluster {
@@ -534,9 +548,16 @@ function New-AcmTest {
   )
 
   Write-Host "Adding cluster to ACM..."
-  Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
+  $result = Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
+  [ordered]@{
+    'Total VM/VM scale set' = $result['Total']
+    'VM/VM scale set added to ACM' = $result['Completed']
+    'Completed rate' = "$($result['Completed'] * 100 / $result['Total'])%"
+  } | Format-Table -Autosize | Out-Default
+
   Write-Host "Getting ACM app info..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
+
   Write-Host "Testing cluster..."
   Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] -ClientSecret $app['ClientSecret'] -ApiBasePoint $app['ApiBasePoint']
 }
