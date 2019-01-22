@@ -291,6 +291,12 @@ function Login {
   }
 }
 
+function Prepare-AcmAzureCtx {
+  param($SubscriptionId)
+  Login
+  Select-AzSubscription -SubscriptionId $SubscriptionId
+}
+
 function Wait-AcmJob {
   param($jobs, $startTime, $timeout)
 
@@ -331,8 +337,7 @@ function Add-AcmCluster {
   )
 
   $startTime = Get-Date
-  Login
-  Select-AzSubscription -SubscriptionId $SubscriptionId
+  Prepare-AcmAzureCtx $SubscriptionId | Out-Null
 
   $jobs = @()
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
@@ -379,8 +384,7 @@ function Remove-AcmCluster {
   )
 
   $startTime = Get-Date
-  Login
-  Select-AzSubscription -SubscriptionId $SubscriptionId
+  Prepare-AcmAzureCtx $SubscriptionId | Out-Null
 
   $jobs = @()
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
@@ -457,13 +461,13 @@ function Test-AcmCluster {
   # TODO: make test cat and name variables with default value
   Write-Host "Installing test prerequisites on nodes..."
   $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
-  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout
+  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
 
   # Then, do test
   # TODO: make test cat and name variables with default value
   Write-Host "Performing test on nodes..."
   $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
-  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout
+  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
 
   # Finally, get aggreation result
   Write-Host "Getting test report..."
@@ -482,10 +486,14 @@ function Get-AcmAppInfo {
   )
 
   $ErrorActionPreference = 'Stop'
-  Login
-  Select-AzSubscription -SubscriptionId $SubscriptionId
+
+  Prepare-AcmAzureCtx $SubscriptionId | Out-Null
+
   $app = $(Get-AzWebApp -ResourceGroupName $ResourceGroup)[0]
-  $config = Invoke-AzResourceAction -ApiVersion 2016-08-01 -Action list -ResourceGroupName $app.ResourceGroup -ResourceType Microsoft.Web/sites/config -ResourceName "$($app.Name)/authsettings" -Force
+  $config = Invoke-AzResourceAction -ApiVersion 2016-08-01 -Action list `
+    -ResourceGroupName $app.ResourceGroup `
+    -ResourceType Microsoft.Web/sites/config `
+    -ResourceName "$($app.Name)/authsettings" -Force
   $auth = $config.properties
   return @{
     'IssuerUrl' = $auth.issuer
