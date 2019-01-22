@@ -60,7 +60,6 @@ function Add-AcmVm {
     Write-Host "Caught exception: $($_)"
   }
   Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType "HpcAcmAgent" -ResourceGroupName $vm.ResourceGroupName -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
-  Write-Host "OK"
 }
 
 function Remove-AcmVm {
@@ -174,8 +173,6 @@ function Add-AcmVmScaleSet {
   Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" -Type "HpcAcmAgent" -TypeHandlerVersion 1.0
   Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
   Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
-
-  Write-Host "OK"
 }
 
 function Remove-AcmVmScaleSet {
