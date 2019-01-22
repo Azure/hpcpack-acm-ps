@@ -308,7 +308,7 @@ function Wait-AcmJob {
     $percent = $elapsed * 100 / $timeout
     $doneJobCount = $jobs.Count - $runningJobCount
     Write-Progress -PercentComplete $percent -Activity "Waiting for jobs to complete..." `
-      -CurrentOperation "Complete jobs: $($doneJobCount)/$($jobs.Count)"
+      -CurrentOperation "Completed jobs: $($doneJobCount)/$($jobs.Count)"
     Receive-Job $jobs
     Start-Sleep 1
   }
