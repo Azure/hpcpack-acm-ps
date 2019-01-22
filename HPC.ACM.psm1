@@ -345,7 +345,7 @@ function Add-AcmCluster {
     [string] $AcmResourceGroup,
 
     [Parameter(Mandatory = $false)]
-    [int] $Timeout = 300,
+    [int] $Timeout = 180,
 
     [Parameter(Mandatory = $false)]
     [bool] $RemoveJobs = $true
@@ -407,7 +407,7 @@ function Remove-AcmCluster {
     [string] $AcmResourceGroup,
 
     [Parameter(Mandatory = $false)]
-    [int] $Timeout = 300,
+    [int] $Timeout = 180,
 
     [Parameter(Mandatory = $false)]
     [bool] $RemoveJobs = $true
