@@ -57,7 +57,7 @@ function Add-AcmVm {
     Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
   Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType "HpcAcmAgent" -ResourceGroupName $vm.ResourceGroupName -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
   Write-Host "OK"
@@ -80,7 +80,7 @@ function Remove-AcmVm {
     Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
 
   Write-Host "Remove role 'Storage Account Contributor' from VM $($vm.Name)"
@@ -88,7 +88,7 @@ function Remove-AcmVm {
     Remove-AzRoleAssignment -ObjectId $vm.Identity.PrincipalId -RoleDefinitionName "Storage Account Contributor" -ResourceName $storageAccountName -ResourceType "Microsoft.Storage/storageAccounts" -ResourceGroupName $storageAccountRG
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
 
   Write-Host "Remove role 'reader' from VM $($vm.Name)"
@@ -96,7 +96,7 @@ function Remove-AcmVm {
     Remove-AzRoleAssignment -ObjectId $vm.Identity.PrincipalId -RoleDefinitionName "Reader" -ResourceGroupName $vm.ResourceGroupName
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
 
   Write-Host "Disable MSI for VM $($vm.Name)"
@@ -105,7 +105,7 @@ function Remove-AcmVm {
       Update-AzVM -ResourceGroupName $vm.ResourceGroupName -VM $vm -IdentityType "None"
     }
     catch {
-      $_
+      Write-Host "Caught exception: $($_)"
     }
   }
 }
@@ -168,7 +168,7 @@ function Add-AcmVmScaleSet {
     Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
 
   Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" -Type "HpcAcmAgent" -TypeHandlerVersion 1.0
@@ -197,7 +197,7 @@ function Remove-AcmVmScaleSet {
     Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
 
   Write-Host "Remove role 'Storage Account Contributor' from VMSS $($vmss.Name)"
@@ -205,7 +205,7 @@ function Remove-AcmVmScaleSet {
     Remove-AzRoleAssignment -ObjectId $vmss.Identity.PrincipalId -RoleDefinitionName "Storage Account Contributor" -ResourceName $storageAccountName -ResourceType "Microsoft.Storage/storageAccounts" -ResourceGroupName $storageAccountRG
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
 
   Write-Host "Remove role 'reader' from VMSS $($vmss.Name)"
@@ -213,7 +213,7 @@ function Remove-AcmVmScaleSet {
     Remove-AzRoleAssignment -ObjectId $vmss.Identity.PrincipalId -RoleDefinitionName "Reader" -ResourceGroupName $vmss.ResourceGroupName
   }
   catch {
-    $_
+    Write-Host "Caught exception: $($_)"
   }
 
   Write-Host "Disable MSI for VMSS $($vmss.Name)"
@@ -222,7 +222,7 @@ function Remove-AcmVmScaleSet {
       Update-AzVmss -ResourceGroupName $vmss.resourceGroupName -VMScaleSetName $vmss.Name -IdentityType "None"
     }
     catch {
-      $_
+      Write-Host "Caught exception: $($_)"
     }
   }
 }
