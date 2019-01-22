@@ -59,7 +59,14 @@ function Add-AcmVm {
   catch {
     Write-Host "Caught exception: $($_)"
   }
-  Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType "HpcAcmAgent" -ResourceGroupName $vm.ResourceGroupName -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
+  if ($vm.OSProfile.LinuxConfiguration) {
+    $extesionType = "HpcAcmAgent"
+  }
+  else {
+    # Suppose there're only Linux and Windows
+    $extesionType = "HpcAcmAgentWin"
+  }
+  Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
 }
 
 function Remove-AcmVm {
@@ -170,7 +177,14 @@ function Add-AcmVmScaleSet {
     Write-Host "Caught exception: $($_)"
   }
 
-  Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" -Type "HpcAcmAgent" -TypeHandlerVersion 1.0
+  if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
+    $extesionType = "HpcAcmAgent"
+  }
+  else {
+    # Suppose there're only Linux and Windows
+    $extesionType = "HpcAcmAgentWin"
+  }
+  Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" -Type $extesionType -TypeHandlerVersion 1.0
   Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
   Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
 }
