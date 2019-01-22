@@ -408,13 +408,20 @@ function Remove-AcmCluster {
 }
 
 function Wait-AcmDiagnosticJob {
-  param($job, $conn)
+  param($job, $conn, $startTime, $timeout)
 
-  $percent = 0
-  while (($job.State -ne "Finished") -and ($job.State -ne "Failed") -and ($job.State -ne "Canceled")) {
-    Write-Progress -PercentComplete (++$percent % 100) -Activity "Waiting for job to complete..." -CurrentOperation "Job State: $($job.State)"
-    Start-Sleep 1
+  while ($true) {
+    $elapsed = ($(Get-Date) - $startTime).TotalSeconds
+    if ($elapsed -ge $Timeout) {
+      break
+    }
+    if (($job.State -eq "Finished") -or ($job.State -eq "Failed") -or ($job.State -eq "Canceled")) {
+      break
+    }
+    $percent = $elapsed * 100 / $timeout
+    Write-Progress -PercentComplete $percent -Activity "Waiting for job to complete..." -CurrentOperation "Job State: $($job.State)"
     $job = Get-AcmDiagnosticJob -Id $job.Id -Connection $conn
+    Start-Sleep 1
   }
   return $job
 }
@@ -431,8 +438,13 @@ function Test-AcmCluster {
     [string] $ClientSecret,
 
     [Parameter(Mandatory = $true)]
-    [string] $ApiBasePoint
+    [string] $ApiBasePoint,
+
+    [Parameter(Mandatory = $false)]
+    [int] $Timeout = 600
   )
+
+  $startTime = Get-Date
 
   Write-Host "Connecting to Acm..."
   $conn = Connect-Acm -IssuerUrl $IssuerUrl -ClientId $ClientId -ClientSecret $ClientSecret -ApiBasePoint $ApiBasePoint
@@ -445,13 +457,13 @@ function Test-AcmCluster {
   # TODO: make test cat and name variables with default value
   Write-Host "Installing test prerequisites on nodes..."
   $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
-  Wait-AcmDiagnosticJob $job $conn
+  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout
 
   # Then, do test
   # TODO: make test cat and name variables with default value
   Write-Host "Performing test on nodes..."
   $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
-  Wait-AcmDiagnosticJob $job $conn
+  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout
 
   # Finally, get aggreation result
   Write-Host "Getting test report..."
