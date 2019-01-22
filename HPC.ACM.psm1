@@ -291,7 +291,7 @@ function Login {
   }
 }
 
-function WaitJob {
+function Wait-AcmJob {
   param($jobs, $startTime, $timeout)
 
   $ids = $jobs.foreach('id')
@@ -355,7 +355,7 @@ function Add-AcmCluster {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Add-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
   }
 
-  WaitJob $jobs $startTime $Timeout
+  Wait-AcmJob $jobs $startTime $Timeout
 
   # Remove-Job somtimes don't return even with -Force
   # Remove-Job -Force -Job $jobs
@@ -402,7 +402,7 @@ function Remove-AcmCluster {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Remove-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
   }
 
-  WaitJob $jobs $startTime $Timeout
+  Wait-AcmJob $jobs $startTime $Timeout
   Remove-Job -Force -Job $jobs
   $jobs
 }
