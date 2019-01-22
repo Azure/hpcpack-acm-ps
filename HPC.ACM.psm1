@@ -422,7 +422,10 @@ function Remove-AcmCluster {
   }
 
   Wait-AcmJob $jobs $startTime $Timeout
-  Remove-Job -Force -Job $jobs
+
+  # Remove-Job somtimes don't return even with -Force
+  # Remove-Job -Force -Job $jobs
+
   $jobs
 }
 
