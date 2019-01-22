@@ -489,6 +489,7 @@ function Test-AcmCluster {
     [Parameter(Mandatory = $true)]
     [string] $ApiBasePoint,
 
+    # TODO: determin timeout on node number
     [Parameter(Mandatory = $false)]
     [int] $Timeout = 600
   )
@@ -500,7 +501,14 @@ function Test-AcmCluster {
 
   Write-Host "Getting Acm nodes..."
   $nodes = Get-AcmNode -Connection $conn -Count 100000
-  $names = $nodes.ForEach('Name')
+  $goodNodes = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' })
+  if ($goodNodes.Count -eq 0) {
+    return @{
+      TotalNodes = $nodes.Count
+      GoodNodes = $goodNodes.Count
+    }
+  }
+  $names = $goodNodes.ForEach('Name')
 
   # First, install necessary tools
   # TODO: make test cat and name variables with default value
@@ -517,7 +525,12 @@ function Test-AcmCluster {
   # Finally, get aggreation result
   Write-Host "Getting test report..."
   $result = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
-  return ConvertFrom-JsonNewtonsoft $result.ToString()
+  $result = ConvertFrom-JsonNewtonsoft $result.ToString()
+  return @{
+    TotalNodes = $nodes.Count
+    GoodNodes = $goodNodes.Count
+    TestResult = $result
+  }
 }
 
 # TODO: optional param: app name
@@ -572,5 +585,17 @@ function New-AcmTest {
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
 
   Write-Host "Testing cluster..."
-  Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] -ClientSecret $app['ClientSecret'] -ApiBasePoint $app['ApiBasePoint']
+  $result = Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] `
+    -ClientSecret $app['ClientSecret'] -ApiBasePoint $app['ApiBasePoint']
+  if ($result['TestResult']) {
+    $passed = $result['TestResult']['GoodNodes'].Count
+  }
+  else {
+    $passed = 0
+  }
+  [ordered]@{
+    'Total nodes' = $result['TotalNodes']
+    'Healthy nodes' = $result['GoodNodes']
+    'Nodes passed MPI pingpong' = $passed
+  } | Format-Table -Autosize | Out-Default
 }
