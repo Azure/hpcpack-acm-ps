@@ -309,7 +309,7 @@ function Prepare-AcmAzureCtx {
 }
 
 function Wait-AcmJob {
-  param($jobs, $startTime, $timeout)
+  param($jobs, $startTime, $timeout, $activity)
 
   $ids = $jobs.foreach('id')
   while ($true) {
@@ -325,7 +325,7 @@ function Wait-AcmJob {
     }
 
     $percent = $elapsed * 100 / $timeout
-    Write-Progress -PercentComplete $percent -Activity "Waiting for jobs to complete..." `
+    Write-Progress -PercentComplete $percent -Activity $activity `
       -CurrentOperation "Completed jobs: $($doneJobCount)/$($jobs.Count)"
 
     # NOTE: DO NOT simply
@@ -414,7 +414,7 @@ function Add-AcmCluster {
     $names += $vmss.Name
   }
 
-  Wait-AcmJob $jobs $startTime $Timeout
+  Wait-AcmJob $jobs $startTime $Timeout 'Adding VMs and VM scale sets to ACM service...'
 
   if ($RemoveJobs) {
     $ids = $jobs.foreach('Id')
@@ -469,7 +469,7 @@ function Remove-AcmCluster {
     $names += $vmss.Name
   }
 
-  Wait-AcmJob $jobs $startTime $Timeout
+  Wait-AcmJob $jobs $startTime $Timeout 'Removing VMs and VM scale sets from ACM service...'
 
   if ($RemoveJobs) {
     $ids = $jobs.foreach('Id')
