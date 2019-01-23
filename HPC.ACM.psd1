@@ -4,7 +4,7 @@
 RootModule = 'HPC.ACM.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0'
+ModuleVersion = '1.1.0'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -43,7 +43,11 @@ Description = 'Cmdlets for HPC ACM operations, including add/remove/test cluster
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @('Az', 'ThreadJob', 'newtonsoft.json', 'HPC.ACM.API.PS')
+#
+# NOTE: Module 'Az' should be included here but can't because a bug in PowerShell breaks Publish-Module
+# when 'Az' is included here. See https://github.com/PowerShell/PowerShell/issues/8125
+#
+RequiredModules = @('ThreadJob', 'newtonsoft.json', 'HPC.ACM.API.PS')
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()
