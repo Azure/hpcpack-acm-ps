@@ -514,7 +514,7 @@ function Remove-AcmCluster {
 }
 
 function Wait-AcmDiagnosticJob {
-  param($job, $conn, $startTime, $timeout)
+  param($job, $conn, $startTime, $timeout, $activity)
 
   while ($true) {
     $elapsed = ($(Get-Date) - $startTime).TotalSeconds
@@ -525,7 +525,7 @@ function Wait-AcmDiagnosticJob {
       break
     }
     $percent = $elapsed * 100 / $timeout
-    Write-Progress -PercentComplete $percent -Activity "Waiting for job to complete..." -CurrentOperation "Job State: $($job.State)"
+    Write-Progress -PercentComplete $percent -Activity $activity -CurrentOperation "Job State: $($job.State)"
     $job = Get-AcmDiagnosticJob -Id $job.Id -Connection $conn
     Start-Sleep 1
   }
@@ -567,13 +567,13 @@ function Test-AcmCluster {
     # TODO: make test cat and name variables with default value
     Write-Host "Installing test prerequisites on nodes..."
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
-    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
+    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout 'Installing test prerequisites...' | Out-Null
 
     # Then, do test
     # TODO: make test cat and name variables with default value
     Write-Host "Performing test on nodes..."
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
-    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
+    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout "Performing test..." | Out-Null
 
     # Finally, get aggreation result
     Write-Host "Getting test report..."
