@@ -318,13 +318,13 @@ function Wait-AcmJob {
       break
     }
     # TODO: optimize this
-    $runningJobCount = $(Get-Job -Id $ids).where({ $_.state -eq 'Running'}).Count
-    if ($runningJobCount -eq 0) {
+    $doneJobCount = $(Get-Job -Id $ids).where({
+      $_.state -eq 'Completed' -or $_.state -eq 'Failed' -or $_.state -eq 'Stopped' }).Count
+    if ($doneJobCount -eq $ids.Count) {
       break
     }
 
     $percent = $elapsed * 100 / $timeout
-    $doneJobCount = $jobs.Count - $runningJobCount
     Write-Progress -PercentComplete $percent -Activity "Waiting for jobs to complete..." `
       -CurrentOperation "Completed jobs: $($doneJobCount)/$($jobs.Count)"
 
