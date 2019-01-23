@@ -360,7 +360,7 @@ function CollectResult {
   param($names, $jobs)
   $result = @()
   for ($idx = 1; $idx -lt $names.Length; $idx++) {
-    $result += @{
+    $result += [PSCustomObject]@{
       Name = $names[$idx]
       Completed = $jobs[$idx].State -eq 'Completed'
       JobId = $jobs[$idx].Id
@@ -599,17 +599,17 @@ function New-AcmTest {
 
   Write-Host "Adding cluster to ACM service..."
   $result = Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
-  $completed = $result.where({ $_['Completed'] }).Count
-  $summary = @{
+  $completed = $result.where({ $_.Completed }).Count
+  $summary = [PSCustomObject]@{
     Total = $result.Count
     Completed = $completed
     Percent = "$('{0:0.00}' -f ($completed * 100 / $result.Count))%"
   }
   Write-Host "Result of adding cluster to ACM service:"
-  $result.foreach({[PSCustomObject]$_}) |
+  $result |
     Sort-Object -Property @{Expression = "Completed"; Descending = $true}, @{Expression = "Name"; Descending = $false} |
     Format-Table -Property Name, Completed, JobId -Wrap | Out-Default
-  [PSCustomObject]$summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
+  $summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
 
   Write-Host "Testing cluster in ACM service..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
