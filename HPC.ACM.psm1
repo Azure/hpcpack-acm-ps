@@ -347,6 +347,28 @@ function Wait-AcmJob {
   }
 }
 
+function Remove-AcmJob {
+  param($ids)
+  # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
+  Start-ThreadJob -ScriptBlock {
+    param($ids)
+    Remove-Job -Force -Id $ids
+  } -ArgumentList $ids | Out-Null
+}
+
+function CollectResult {
+  param($names, $jobs)
+  $result = @()
+  for ($idx = 1; $idx -lt $names.Length; $idx++) {
+    $result += @{
+      Name = $names[$idx]
+      Completed = $jobs[$idx].State -eq 'Completed'
+      JobId = $jobs[$idx].Id
+    }
+  }
+  return $result
+}
+
 function Add-AcmCluster {
   param(
     [Parameter(Mandatory = $true)]
@@ -396,21 +418,10 @@ function Add-AcmCluster {
 
   if ($RemoveJobs) {
     $ids = $jobs.foreach('Id')
-    # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
-    Start-ThreadJob -ScriptBlock {
-      param($ids)
-      Remove-Job -Force -Id $ids
-    } -ArgumentList $ids | Out-Null
+    Remove-AcmJob $ids
   }
 
-  $result = @()
-  for ($idx = 1; $idx -lt $names.Length; $idx++) {
-    $result += @{
-      Name = $names[$idx]
-      Completed = $jobs[$idx].State -eq 'Completed'
-      JobId = $jobs[$idx].Id
-    }
-  }
+  $result = CollectResult $names $jobs
   return $result
 }
 
@@ -436,6 +447,7 @@ function Remove-AcmCluster {
   Prepare-AcmAzureCtx $SubscriptionId | Out-Null
 
   $jobs = @()
+  $names = @($null)
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
   $storageAccount = (Get-AzStorageAccount -ResourceGroupName $acmRg.ResourceGroupName)[0]
 
@@ -450,29 +462,22 @@ function Remove-AcmCluster {
 
   foreach ($vm in $vms) {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Remove-AcmVm} -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $names += $vm.Name
   }
   foreach ($vmss in $vmssSet) {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Remove-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $names += $vmss.Name
   }
 
   Wait-AcmJob $jobs $startTime $Timeout
 
-  $ids = $jobs.foreach('Id')
-  $retVal = @{
-    Total = $vms.Count + $vmssSet.Count
-    Completed = $jobs.where({ $_.State -eq 'Completed' }).Count - 1
-  }
   if ($RemoveJobs) {
-    # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
-    Start-ThreadJob -ScriptBlock {
-      param($ids)
-      Remove-Job -Force -Id $ids
-    } -ArgumentList $ids | Out-Null
+    $ids = $jobs.foreach('Id')
+    Remove-AcmJob $ids
   }
-  else {
-    $retVal['Jobs'] = $ids
-  }
-  return $retVal
+
+  $result = CollectResult $names $jobs
+  return $result
 }
 
 function Wait-AcmDiagnosticJob {
