@@ -374,18 +374,20 @@ function CollectResult {
 function OutputResult {
   param($result)
 
-  # TODO: judge if total is 0
-  $completed = $result.where({ $_.Completed }).Count
-  $summary = [PSCustomObject]@{
-    Total = $result.Count
-    Completed = $completed
-    Percent = "$('{0:0.00}' -f ($completed * 100 / $result.Count))%"
-  }
   $result |
-    # TODO: Change order: Completed asc
-    Sort-Object -Property @{Expression = "Completed"; Descending = $true}, @{Expression = "Name"; Descending = $false} |
-    Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, Completed, JobId -Wrap | Out-Default
-  $summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
+    Sort-Object -Property Completed, Name |
+    Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, Completed, JobId -Wrap |
+    Out-Default
+
+  if ($result.Count -gt 0) {
+    $completed = $result.where({ $_.Completed }).Count
+    $summary = [PSCustomObject]@{
+      Total = $result.Count
+      Completed = $completed
+      Percent = "$('{0:0.00}' -f ($completed * 100 / $result.Count))%"
+    }
+    $summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
+  }
 }
 
 function Add-AcmCluster {
