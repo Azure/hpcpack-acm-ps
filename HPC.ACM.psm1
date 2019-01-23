@@ -369,6 +369,7 @@ function Add-AcmCluster {
   Prepare-AcmAzureCtx $SubscriptionId | Out-Null
 
   $jobs = @()
+  $names = @($null)
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
   $storageAccount = (Get-AzStorageAccount -ResourceGroupName $acmRg.ResourceGroupName)[0]
 
@@ -384,29 +385,33 @@ function Add-AcmCluster {
   # TODO: Apply -ThrottleLimit of Start-ThreadJob based on total jobs
   foreach ($vm in $vms) {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Add-AcmVm} -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $names += $vm.Name
   }
   foreach ($vmss in $vmssSet) {
     $jobs += Start-ThreadJob -ScriptBlock ${function:Add-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $names += $vmss.Name
   }
 
   Wait-AcmJob $jobs $startTime $Timeout
 
-  $ids = $jobs.foreach('Id')
-  $retVal = @{
-    Total = $vms.Count + $vmssSet.Count
-    Completed = $jobs.where({ $_.State -eq 'Completed' }).Count - 1
-  }
   if ($RemoveJobs) {
+    $ids = $jobs.foreach('Id')
     # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
     Start-ThreadJob -ScriptBlock {
       param($ids)
       Remove-Job -Force -Id $ids
     } -ArgumentList $ids | Out-Null
   }
-  else {
-    $retVal['Jobs'] = $ids
+
+  $result = @()
+  for ($idx = 1; $idx -lt $names.Length; $idx++) {
+    $result += @{
+      Name = $names[$idx]
+      Completed = $jobs[$idx].State -eq 'Completed'
+      JobId = $jobs[$idx].Id
+    }
   }
-  return $retVal
+  return $result
 }
 
 function Remove-AcmCluster {
@@ -587,18 +592,22 @@ function New-AcmTest {
     [string] $SubscriptionId
   )
 
-  Write-Host "Adding cluster to ACM..."
+  Write-Host "Adding cluster to ACM service..."
   $result = Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
-  [ordered]@{
-    'Total VM/VM scale set' = $result['Total']
-    'VM/VM scale set added to ACM' = $result['Completed']
-    'Completed rate' = "$($result['Completed'] * 100 / $result['Total'])%"
-  } | Format-Table -Autosize | Out-Default
+  $completed = $result.where({ $_['Completed'] }).Count
+  $summary = @{
+    Total = $result.Count
+    Completed = $completed
+    Percent = "$('{0:0.00}' -f ($completed * 100 / $result.Count))%"
+  }
+  Write-Host "Result of adding cluster to ACM service:"
+  $result.foreach({[PSCustomObject]$_}) |
+    Sort-Object -Property @{Expression = "Completed"; Descending = $true}, @{Expression = "Name"; Descending = $false} |
+    Format-Table -Property Name, Completed, JobId -Wrap | Out-Default
+  [PSCustomObject]$summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
 
-  Write-Host "Getting ACM app info..."
+  Write-Host "Testing cluster in ACM service..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
-
-  Write-Host "Testing cluster..."
   $result = Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] `
     -ClientSecret $app['ClientSecret'] -ApiBasePoint $app['ApiBasePoint']
   if ($result['TestResult']) {
