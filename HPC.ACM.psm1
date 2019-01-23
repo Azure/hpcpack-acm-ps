@@ -608,7 +608,7 @@ function New-AcmTest {
   Write-Host "Result of adding cluster to ACM service:"
   $result |
     Sort-Object -Property @{Expression = "Completed"; Descending = $true}, @{Expression = "Name"; Descending = $false} |
-    Format-Table -Property Name, Completed, JobId -Wrap | Out-Default
+    Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, Completed, JobId -Wrap | Out-Default
   $summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
 
   Write-Host "Testing cluster in ACM service..."
