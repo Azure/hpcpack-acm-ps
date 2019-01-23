@@ -374,6 +374,7 @@ function CollectResult {
 function OutputResult {
   param($result)
 
+  # TODO: judge if total is 0
   $completed = $result.where({ $_.Completed }).Count
   $summary = [PSCustomObject]@{
     Total = $result.Count
@@ -381,6 +382,7 @@ function OutputResult {
     Percent = "$('{0:0.00}' -f ($completed * 100 / $result.Count))%"
   }
   $result |
+    # TODO: Change order: Completed asc
     Sort-Object -Property @{Expression = "Completed"; Descending = $true}, @{Expression = "Name"; Descending = $false} |
     Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, Completed, JobId -Wrap | Out-Default
   $summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
@@ -528,22 +530,6 @@ function Wait-AcmDiagnosticJob {
   return $job
 }
 
-function OutputTestResult {
-  param($result)
-
-  if ($result['TestResult']) {
-    $passed = $result['TestResult']['GoodNodes'].Count
-  }
-  else {
-    $passed = 0
-  }
-  [ordered]@{
-    'Total nodes' = $result['TotalNodes']
-    'Healthy nodes' = $result['GoodNodes']
-    'Nodes passed MPI pingpong' = $passed
-  } | Format-Table -Autosize | Out-Default
-}
-
 function Test-AcmCluster {
   param(
     [Parameter(Mandatory = $true)]
@@ -573,10 +559,8 @@ function Test-AcmCluster {
 
   Write-Host "Getting Acm nodes..."
   $nodes = Get-AcmNode -Connection $conn -Count 100000
-  $goodNodes = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' })
-  if ($goodNodes.Count -gt 0) {
-    $names = $goodNodes.ForEach('Name')
-
+  $names = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' }).foreach('Name')
+  if ($names.Count -gt 0) {
     # First, install necessary tools
     # TODO: make test cat and name variables with default value
     Write-Host "Installing test prerequisites on nodes..."
@@ -591,22 +575,45 @@ function Test-AcmCluster {
 
     # Finally, get aggreation result
     Write-Host "Getting test report..."
-    $result = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
-    $result = ConvertFrom-JsonNewtonsoft $result.ToString()
+    $testResult = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
+    $testResult = ConvertFrom-JsonNewtonsoft $testResult.ToString()
+    $goodNodes = New-Object -TypeName System.Collections.Generic.HashSet[string] -ArgumentList @(,$testResult['GoodNodes'])
+    $goodCount = $goodNodes.Count
   }
   else {
-    $result = $null
+    $goodNodes = $null
+    $goodCount = 0
   }
 
-  $ret =  @{
-    TotalNodes = $nodes.Count
-    GoodNodes = $goodNodes.Count
-    TestResult = $result
-  }
+  $nodes = $nodes.foreach({
+    $val = [ordered]@{
+      Name = $_.Name
+      InTest = $_.Health -eq 'OK' -and $_.State -eq 'Online'
+    }
+    if ($goodNodes -ne $null) {
+      $val['Good'] = $goodNodes.Contains($_.Name)
+    }
+    else {
+      $val['Good'] = $null
+    }
+    [PSCustomObject]$val
+  })
+
   if ($Return) {
-    return $ret
+    return $nodes
   }
-  OutputTestResult $ret
+
+  $nodes | Sort-Object -Property InTest, Good, Name |
+    Format-Table -Property @{Name = 'Node'; Expression = {$_.Name}}, InTest, Good -Wrap | Out-Default
+
+  if ($nodes.Count -gt 0) {
+    $summary = [PSCustomObject]@{
+      Total = $nodes.Count
+      Good = $goodCount
+      Percent = "$('{0:0.00}' -f ($goodCount * 100 / $nodes.Count))%"
+    }
+    $summary | Format-Table -Property Total, Good, Percent -Wrap | Out-Default
+  }
 }
 
 # TODO: optional param: app name
