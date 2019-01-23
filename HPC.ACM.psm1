@@ -528,6 +528,22 @@ function Wait-AcmDiagnosticJob {
   return $job
 }
 
+function OutputTestResult {
+  param($result)
+
+  if ($result['TestResult']) {
+    $passed = $result['TestResult']['GoodNodes'].Count
+  }
+  else {
+    $passed = 0
+  }
+  [ordered]@{
+    'Total nodes' = $result['TotalNodes']
+    'Healthy nodes' = $result['GoodNodes']
+    'Nodes passed MPI pingpong' = $passed
+  } | Format-Table -Autosize | Out-Default
+}
+
 function Test-AcmCluster {
   param(
     [Parameter(Mandatory = $true)]
@@ -544,7 +560,10 @@ function Test-AcmCluster {
 
     # TODO: determin timeout on node number
     [Parameter(Mandatory = $false)]
-    [int] $Timeout = 600
+    [int] $Timeout = 600,
+
+    [Parameter(Mandatory = $false)]
+    [switch] $Return
   )
 
   $startTime = Get-Date
@@ -555,35 +574,39 @@ function Test-AcmCluster {
   Write-Host "Getting Acm nodes..."
   $nodes = Get-AcmNode -Connection $conn -Count 100000
   $goodNodes = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' })
-  if ($goodNodes.Count -eq 0) {
-    return @{
-      TotalNodes = $nodes.Count
-      GoodNodes = $goodNodes.Count
-    }
+  if ($goodNodes.Count -gt 0) {
+    $names = $goodNodes.ForEach('Name')
+
+    # First, install necessary tools
+    # TODO: make test cat and name variables with default value
+    Write-Host "Installing test prerequisites on nodes..."
+    $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
+    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
+
+    # Then, do test
+    # TODO: make test cat and name variables with default value
+    Write-Host "Performing test on nodes..."
+    $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
+    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
+
+    # Finally, get aggreation result
+    Write-Host "Getting test report..."
+    $result = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
+    $result = ConvertFrom-JsonNewtonsoft $result.ToString()
   }
-  $names = $goodNodes.ForEach('Name')
+  else {
+    $result = $null
+  }
 
-  # First, install necessary tools
-  # TODO: make test cat and name variables with default value
-  Write-Host "Installing test prerequisites on nodes..."
-  $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
-  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
-
-  # Then, do test
-  # TODO: make test cat and name variables with default value
-  Write-Host "Performing test on nodes..."
-  $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
-  Wait-AcmDiagnosticJob $job $conn $startTime $Timeout | Out-Null
-
-  # Finally, get aggreation result
-  Write-Host "Getting test report..."
-  $result = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
-  $result = ConvertFrom-JsonNewtonsoft $result.ToString()
-  return @{
+  $ret =  @{
     TotalNodes = $nodes.Count
     GoodNodes = $goodNodes.Count
     TestResult = $result
   }
+  if ($Return) {
+    return $ret
+  }
+  OutputTestResult $ret
 }
 
 # TODO: optional param: app name
@@ -631,17 +654,6 @@ function New-AcmTest {
 
   Write-Host "Testing cluster in ACM service..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
-  $result = Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] `
-    -ClientSecret $app['ClientSecret'] -ApiBasePoint $app['ApiBasePoint']
-  if ($result['TestResult']) {
-    $passed = $result['TestResult']['GoodNodes'].Count
-  }
-  else {
-    $passed = 0
-  }
-  [ordered]@{
-    'Total nodes' = $result['TotalNodes']
-    'Healthy nodes' = $result['GoodNodes']
-    'Nodes passed MPI pingpong' = $passed
-  } | Format-Table -Autosize | Out-Default
+  Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] -ClientSecret $app['ClientSecret'] `
+    -ApiBasePoint $app['ApiBasePoint']
 }
