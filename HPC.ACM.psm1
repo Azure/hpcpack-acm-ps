@@ -384,7 +384,7 @@ function Add-AcmCluster {
     [int] $Timeout = 180,
 
     [Parameter(Mandatory = $false)]
-    [bool] $RemoveJobs = $true
+    [switch] $RetainJobs
   )
 
   $startTime = Get-Date
@@ -416,7 +416,7 @@ function Add-AcmCluster {
 
   Wait-AcmJob $jobs $startTime $Timeout 'Adding VMs and VM scale sets to ACM service...'
 
-  if ($RemoveJobs) {
+  if (!$RetainJobs) {
     $ids = $jobs.foreach('Id')
     Remove-AcmJob $ids
   }
@@ -440,7 +440,7 @@ function Remove-AcmCluster {
     [int] $Timeout = 180,
 
     [Parameter(Mandatory = $false)]
-    [bool] $RemoveJobs = $true
+    [switch] $RetainJobs
   )
 
   $startTime = Get-Date
@@ -471,7 +471,7 @@ function Remove-AcmCluster {
 
   Wait-AcmJob $jobs $startTime $Timeout 'Removing VMs and VM scale sets from ACM service...'
 
-  if ($RemoveJobs) {
+  if (!$RetainJobs) {
     $ids = $jobs.foreach('Id')
     Remove-AcmJob $ids
   }
