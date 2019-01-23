@@ -349,6 +349,7 @@ function Wait-AcmJob {
 
 function Remove-AcmJob {
   param($ids)
+
   # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
   Start-ThreadJob -ScriptBlock {
     param($ids)
@@ -358,6 +359,7 @@ function Remove-AcmJob {
 
 function CollectResult {
   param($names, $jobs)
+
   $result = @()
   for ($idx = 1; $idx -lt $names.Length; $idx++) {
     $result += [PSCustomObject]@{
@@ -367,6 +369,21 @@ function CollectResult {
     }
   }
   return $result
+}
+
+function OutputResult {
+  param($result)
+
+  $completed = $result.where({ $_.Completed }).Count
+  $summary = [PSCustomObject]@{
+    Total = $result.Count
+    Completed = $completed
+    Percent = "$('{0:0.00}' -f ($completed * 100 / $result.Count))%"
+  }
+  $result |
+    Sort-Object -Property @{Expression = "Completed"; Descending = $true}, @{Expression = "Name"; Descending = $false} |
+    Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, Completed, JobId -Wrap | Out-Default
+  $summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
 }
 
 function Add-AcmCluster {
@@ -384,7 +401,10 @@ function Add-AcmCluster {
     [int] $Timeout = 180,
 
     [Parameter(Mandatory = $false)]
-    [switch] $RetainJobs
+    [switch] $RetainJobs,
+
+    [Parameter(Mandatory = $false)]
+    [switch] $Return
   )
 
   $startTime = Get-Date
@@ -422,7 +442,10 @@ function Add-AcmCluster {
   }
 
   $result = CollectResult $names $jobs
-  return $result
+  if ($Return) {
+    return $result
+  }
+  OutputResult $result
 }
 
 function Remove-AcmCluster {
@@ -440,7 +463,10 @@ function Remove-AcmCluster {
     [int] $Timeout = 180,
 
     [Parameter(Mandatory = $false)]
-    [switch] $RetainJobs
+    [switch] $RetainJobs,
+
+    [Parameter(Mandatory = $false)]
+    [switch] $Return
   )
 
   $startTime = Get-Date
@@ -477,7 +503,10 @@ function Remove-AcmCluster {
   }
 
   $result = CollectResult $names $jobs
-  return $result
+  if ($Return) {
+    return $result
+  }
+  OutputResult $result
 }
 
 function Wait-AcmDiagnosticJob {
@@ -598,18 +627,7 @@ function New-AcmTest {
   )
 
   Write-Host "Adding cluster to ACM service..."
-  $result = Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
-  $completed = $result.where({ $_.Completed }).Count
-  $summary = [PSCustomObject]@{
-    Total = $result.Count
-    Completed = $completed
-    Percent = "$('{0:0.00}' -f ($completed * 100 / $result.Count))%"
-  }
-  Write-Host "Result of adding cluster to ACM service:"
-  $result |
-    Sort-Object -Property @{Expression = "Completed"; Descending = $true}, @{Expression = "Name"; Descending = $false} |
-    Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, Completed, JobId -Wrap | Out-Default
-  $summary | Format-Table -Property Total, Completed, Percent -Wrap | Out-Default
+  Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
 
   Write-Host "Testing cluster in ACM service..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
