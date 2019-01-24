@@ -315,6 +315,7 @@ function ShowProgress {
   $elapsed = ($now - $startTime).TotalSeconds
   $remains = $timeout - $elapsed
   $percent = $elapsed * 100 / $timeout
+  # TODO: Use splatting args instead of invoke-expression
   $cmd = "Write-Progress -Activity '$($activity)' -PercentComplete $($percent) -SecondsRemaining $($remains)"
   if ($id) {
     $cmd += " -Id $($id)"
@@ -417,7 +418,7 @@ function OutputResult {
   }
 }
 
-function Add-AcmCluster {
+function Initialize-AcmCluster {
   param(
     [Parameter(Mandatory = $true)]
     [string] $SubscriptionId,
@@ -438,11 +439,19 @@ function Add-AcmCluster {
     [switch] $RetainJobs,
 
     [Parameter(Mandatory = $false)]
-    [switch] $Return
+    [switch] $Return,
+
+    [Parameter(Mandatory = $false)]
+    [switch] $Uninitialize
   )
 
   $startTime = Get-Date
-  $activity = 'Adding cluster to ACM service...'
+  if ($Uninitialize) {
+    $activity = 'Removing cluster from ACM service...'
+  }
+  else {
+    $activity = 'Adding cluster to ACM service...'
+  }
 
   $basetime = 180 # Max time to add one VM/VM scale set
   if (!$Timeout) {
@@ -476,19 +485,34 @@ function Add-AcmCluster {
   ShowProgress $startTime $timelimit $activity -Status "Starting jobs..." -id 1
 
   # Configure storage information for the resource group
-  Write-Host "Setting storage configuration for resource group $ResourceGroup..."
-  $jobs += Start-ThreadJob -ScriptBlock ${function:Set-AcmClusterTag} -ArgumentList $ResourceGroup, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+  if ($Uninitialize) {
+    $jobs += Start-ThreadJob -ScriptBlock ${function:Reset-AcmClusterTag} -ArgumentList $ResourceGroup
+  }
+  else {
+    $jobs += Start-ThreadJob -ScriptBlock ${function:Set-AcmClusterTag} `
+      -ArgumentList $ResourceGroup, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+  }
 
   # Register each vm and vm scale set to ACM
-  Write-Host "Adding VMs and VM scale sets from resource group $ResourceGroup..."
-
   # TODO: Apply -ThrottleLimit of Start-ThreadJob based on total jobs
   foreach ($vm in $vms) {
-    $jobs += Start-ThreadJob -ScriptBlock ${function:Add-AcmVm} -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    if ($Uninitialize) {
+      $func = ${function:Remove-AcmVm}
+    }
+    else {
+      $func = ${function:Add-AcmVm}
+    }
+    $jobs += Start-ThreadJob -ScriptBlock $func -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
     $names += $vm.Name
   }
   foreach ($vmss in $vmssSet) {
-    $jobs += Start-ThreadJob -ScriptBlock ${function:Add-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    if ($Uninitialize) {
+      $func = ${function:Remove-AcmVmScaleSet}
+    }
+    else {
+      $func = ${function:Add-AcmVmScaleSet}
+    }
+    $jobs += Start-ThreadJob -ScriptBlock $func -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
     $names += $vmss.Name
   }
 
@@ -506,6 +530,32 @@ function Add-AcmCluster {
     return $result
   }
   OutputResult $result
+}
+
+function Add-AcmCluster {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string] $SubscriptionId,
+
+    [Parameter(Mandatory = $true)]
+    [string] $ResourceGroup,
+
+    [Parameter(Mandatory = $true)]
+    [string] $AcmResourceGroup,
+
+    [Parameter(Mandatory = $false)]
+    [int] $Timeout,
+
+    [Parameter(Mandatory = $false)]
+    [int] $ConcurrentLimit = 1024,
+
+    [Parameter(Mandatory = $false)]
+    [switch] $RetainJobs,
+
+    [Parameter(Mandatory = $false)]
+    [switch] $Return
+  )
+  Initialize-AcmCluster @PSBoundParameters
 }
 
 function Remove-AcmCluster {
@@ -528,52 +578,7 @@ function Remove-AcmCluster {
     [Parameter(Mandatory = $false)]
     [switch] $Return
   )
-
-  $startTime = Get-Date
-  $activity = 'Removing cluster from ACM service...'
-
-  ShowProgress $startTime $Timeout $activity -Status "Login to Azure..." -id 1
-  Prepare-AcmAzureCtx $SubscriptionId | Out-Null
-
-  $jobs = @()
-  $names = @($null)
-  $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
-  $storageAccount = (Get-AzStorageAccount -ResourceGroupName $acmRg.ResourceGroupName)[0]
-
-  ShowProgress $startTime $Timeout $activity -Status "Starting jobs..." -id 1
-
-  # Configure storage information for the resource group
-  Write-Host "Resetting storage configuration for resource group $ResourceGroup..."
-  $jobs += Start-ThreadJob -ScriptBlock ${function:Reset-AcmClusterTag} -ArgumentList $ResourceGroup
-
-  # Register each vm and vm scale set to ACM
-  Write-Host "Removing VMs and VM scale sets from resource group $ResourceGroup..."
-  $vms = Get-AzVm -ResourceGroupName $ResourceGroup
-  $vmssSet = Get-AzVmss -ResourceGroupName $ResourceGroup
-
-  foreach ($vm in $vms) {
-    $jobs += Start-ThreadJob -ScriptBlock ${function:Remove-AcmVm} -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
-    $names += $vm.Name
-  }
-  foreach ($vmss in $vmssSet) {
-    $jobs += Start-ThreadJob -ScriptBlock ${function:Remove-AcmVmScaleSet} -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
-    $names += $vmss.Name
-  }
-
-  Wait-AcmJob $jobs $startTime $Timeout $activity -ProgId 1
-
-  if (!$RetainJobs) {
-    ShowProgress $startTime $Timeout $activity -Status "Cleaning jobs..." -id 1
-    $ids = $jobs.foreach('Id')
-    Remove-AcmJob $ids
-  }
-  HideProgress 1
-
-  $result = CollectResult $names $jobs
-  if ($Return) {
-    return $result
-  }
-  OutputResult $result
+  Initialize-AcmCluster @PSBoundParameters -Uninitialize
 }
 
 function Wait-AcmDiagnosticJob {
