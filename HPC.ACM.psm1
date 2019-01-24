@@ -586,28 +586,37 @@ function Test-AcmCluster {
   )
 
   $startTime = Get-Date
+  $activity = "Testing cluster in ACM service..."
 
-  Write-Host "Connecting to Acm..."
+  $status = "Connecting to ACM service..."
+  Write-Host $status
+  ShowProgress $startTime $Timeout $activity -Status $status -id 1
   $conn = Connect-Acm -IssuerUrl $IssuerUrl -ClientId $ClientId -ClientSecret $ClientSecret -ApiBasePoint $ApiBasePoint
 
-  Write-Host "Getting Acm nodes..."
+  $status = "Getting ACM nodes..."
+  Write-Host $status
+  ShowProgress $startTime $Timeout $activity -Status $status -id 1
   $nodes = Get-AcmNode -Connection $conn -Count 100000
   $names = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' }).foreach('Name')
   if ($names.Count -gt 0) {
     # First, install necessary tools
-    # TODO: make test cat and name variables with default value
-    Write-Host "Installing test prerequisites on nodes..."
+    $status = "Installing test prerequisites on nodes..."
+    Write-Host $status
+    ShowProgress $startTime $Timeout $activity -Status $status -id 1
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
     Wait-AcmDiagnosticJob $job $conn $startTime $Timeout 'Installing test prerequisites...' | Out-Null
 
     # Then, do test
-    # TODO: make test cat and name variables with default value
-    Write-Host "Performing test on nodes..."
+    $status = "Performing test on nodes..."
+    Write-Host $status
+    ShowProgress $startTime $Timeout $activity -Status $status -id 1
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
     Wait-AcmDiagnosticJob $job $conn $startTime $Timeout "Performing test..." | Out-Null
 
     # Finally, get aggreation result
-    Write-Host "Getting test report..."
+    $status = "Fetching test aggregation result..."
+    Write-Host $status
+    ShowProgress $startTime $Timeout $activity -Status $status -id 1
     $testResult = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
     $testResult = ConvertFrom-JsonNewtonsoft $testResult.ToString()
     $goodNodes = New-Object -TypeName System.Collections.Generic.HashSet[string] -ArgumentList @(,$testResult['GoodNodes'])
