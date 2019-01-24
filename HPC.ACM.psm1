@@ -432,8 +432,10 @@ function Initialize-AcmCluster {
     [Parameter(Mandatory = $false)]
     [int] $Timeout,
 
+    # NOTE: Do not change the default value and do not provide a bigger one,
+    # as Start-ThreadJob won't accept a value > 50 and will raise an error.
     [Parameter(Mandatory = $false)]
-    [int] $ConcurrentLimit = 1024,
+    [int] $ConcurrentLimit = 50,
 
     [Parameter(Mandatory = $false)]
     [switch] $RetainJobs,
@@ -546,9 +548,6 @@ function Add-AcmCluster {
 
     [Parameter(Mandatory = $false)]
     [int] $Timeout,
-
-    [Parameter(Mandatory = $false)]
-    [int] $ConcurrentLimit = 1024,
 
     [Parameter(Mandatory = $false)]
     [switch] $RetainJobs,
