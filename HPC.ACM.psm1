@@ -52,7 +52,7 @@ function Add-AcmVm {
   }
 
   Write-Host "Install HpcAcmAgent for VM $($vm.Name)"
-  # TODO: Do not remove it if it is there.
+  # TODO: Keep it if it is there?
   try {
     Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
   }
@@ -167,7 +167,7 @@ function Add-AcmVmScaleSet {
   }
 
   Write-Host "Install HpcAcmAgent for VM Scale Set $($vmss.Name)"
-  # TODO: Do not remove it if it is there.
+  # TODO: Keep it if it is there?
   try {
     Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
     Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
@@ -345,8 +345,9 @@ function Wait-AcmJob {
     if ($elapsed -ge $Timeout) {
       break
     }
-    # TODO: optimize this
+    # TODO: Optimize counting?
     $doneJobCount = $(Get-Job -Id $ids).where({
+      # TODO: Use "-in" for state test
       $_.state -eq 'Completed' -or $_.state -eq 'Failed' -or $_.state -eq 'Stopped' }).Count
     if ($doneJobCount -eq $ids.Count) {
       break
@@ -586,9 +587,8 @@ function Test-AcmCluster {
     [Parameter(Mandatory = $true)]
     [string] $ApiBasePoint,
 
-    # TODO: determin timeout on node number
     [Parameter(Mandatory = $false)]
-    [int] $Timeout = 600,
+    [int] $Timeout,
 
     [Parameter(Mandatory = $false)]
     [switch] $Return
@@ -597,35 +597,61 @@ function Test-AcmCluster {
   $startTime = Get-Date
   $activity = "Testing cluster in ACM service..."
 
+  # The meanings of basetime and basesize are:
+  # every basesize number of nodes requires basetime to run
+  $basetime = 600
+  $basesize = 90
+
+  if (!$Timeout) {
+    # timelimit will be recomputed later based on number of test nodes
+    $timelimit = $basetime
+  }
+  else {
+    $timelimit = $Timeout
+  }
+
   $status = "Connecting to ACM service..."
   Write-Host $status
-  ShowProgress $startTime $Timeout $activity -Status $status -id 1
+  ShowProgress $startTime $timelimit $activity -Status $status -id 1
   $conn = Connect-Acm -IssuerUrl $IssuerUrl -ClientId $ClientId -ClientSecret $ClientSecret -ApiBasePoint $ApiBasePoint
 
   $status = "Getting ACM nodes..."
   Write-Host $status
-  ShowProgress $startTime $Timeout $activity -Status $status -id 1
+  ShowProgress $startTime $timelimit $activity -Status $status -id 1
+
   $nodes = Get-AcmNode -Connection $conn -Count 100000
   $names = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' }).foreach('Name')
   if ($names.Count -gt 0) {
+    if (!$Timeout) {
+      # Recompute timelimit based on node number, and also ensure a minimum time.
+      $timelimit = $nodes.Count * $basetime / $basesize
+      $mintime = $basetime / 2
+      if ($timelimit -lt $mintime) {
+        $timelimit = $mintime
+      }
+    }
+
     # First, install necessary tools
     $status = "Installing test prerequisites on nodes..."
     Write-Host $status
-    ShowProgress $startTime $Timeout $activity -Status $status -id 1
+    ShowProgress $startTime $timelimit $activity -Status $status -id 1
+
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
-    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout 'Installing test prerequisites...' | Out-Null
+    Wait-AcmDiagnosticJob $job $conn $startTime $timelimit 'Installing test prerequisites...' | Out-Null
 
     # Then, do test
     $status = "Performing test on nodes..."
     Write-Host $status
-    ShowProgress $startTime $Timeout $activity -Status $status -id 1
+    ShowProgress $startTime $timelimit $activity -Status $status -id 1
+
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
-    Wait-AcmDiagnosticJob $job $conn $startTime $Timeout "Performing test..." | Out-Null
+    Wait-AcmDiagnosticJob $job $conn $startTime $timelimit "Performing test..." | Out-Null
 
     # Finally, get aggreation result
     $status = "Fetching test aggregation result..."
     Write-Host $status
-    ShowProgress $startTime $Timeout $activity -Status $status -id 1
+    ShowProgress $startTime $timelimit $activity -Status $status -id 1
+
     $testResult = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
     $testResult = ConvertFrom-JsonNewtonsoft $testResult.ToString()
     $goodNodes = New-Object -TypeName System.Collections.Generic.HashSet[string] -ArgumentList @(,$testResult['GoodNodes'])
