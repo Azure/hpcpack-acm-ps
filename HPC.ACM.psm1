@@ -472,6 +472,7 @@ function Initialize-AcmCluster {
   $names = @($null)
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
   $storageAccount = (Get-AzStorageAccount -ResourceGroupName $acmRg.ResourceGroupName)[0]
+  # TODO: Filter out only running vms, but what about VM scale set?
   $vms = Get-AzVm -ResourceGroupName $ResourceGroup
   $vmssSet = Get-AzVmss -ResourceGroupName $ResourceGroup
 
@@ -602,21 +603,16 @@ function Wait-AcmDiagnosticJob {
 function Test-AcmCluster {
   param(
     [Parameter(Mandatory = $true)]
-    [string] $IssuerUrl,
-
-    [Parameter(Mandatory = $true)]
-    [string] $ClientId,
-
-    [Parameter(Mandatory = $true)]
-    [string] $ClientSecret,
-
-    [Parameter(Mandatory = $true)]
     [string] $ApiBasePoint,
 
-    [Parameter(Mandatory = $false)]
+    [string] $IssuerUrl,
+
+    [string] $ClientId,
+
+    [string] $ClientSecret,
+
     [int] $Timeout,
 
-    [Parameter(Mandatory = $false)]
     [switch] $Return
   )
 
@@ -639,7 +635,17 @@ function Test-AcmCluster {
   $status = "Connecting to ACM service..."
   Write-Host $status
   ShowProgress $startTime $timelimit $activity -Status $status -id 1
-  $conn = Connect-Acm -IssuerUrl $IssuerUrl -ClientId $ClientId -ClientSecret $ClientSecret -ApiBasePoint $ApiBasePoint
+
+  $args = @{
+    ApiBasePoint = $ApiBasePoint
+  }
+  # Allow unauthenticated access if the ACM service allows.
+  if (![string]::IsNullOrEmpty($IssuerUrl)) {
+    $args['IssuerUrl'] = $IssuerUrl
+    $args['ClientId'] = $ClientId
+    $args['ClientSecret'] = $ClientSecret
+  }
+  $conn = Connect-Acm @args
 
   $status = "Getting ACM nodes..."
   Write-Host $status
@@ -766,8 +772,13 @@ function New-AcmTest {
   Write-Host "Adding cluster to ACM service..."
   Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
 
-  Write-Host "Testing cluster in ACM service..."
+  Write-Host "Getting ACM service app configuration..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
+  if (!$app['IssuerUrl']) {
+    Write-Warning "No authentication configuration is found for the ACM app in $($AcmResourceGroup)!"
+  }
+
+  Write-Host "Testing cluster in ACM service..."
   Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] -ClientSecret $app['ClientSecret'] `
     -ApiBasePoint $app['ApiBasePoint']
 }
