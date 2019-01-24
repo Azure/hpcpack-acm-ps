@@ -429,7 +429,10 @@ function Add-AcmCluster {
     [string] $AcmResourceGroup,
 
     [Parameter(Mandatory = $false)]
-    [int] $Timeout = 180,
+    [int] $Timeout,
+
+    [Parameter(Mandatory = $false)]
+    [int] $ConcurrentLimit = 1024,
 
     [Parameter(Mandatory = $false)]
     [switch] $RetainJobs,
@@ -441,15 +444,36 @@ function Add-AcmCluster {
   $startTime = Get-Date
   $activity = 'Adding cluster to ACM service...'
 
-  ShowProgress $startTime $Timeout $activity -Status "Login to Azure..." -id 1
+  $basetime = 180 # Max time to add one VM/VM scale set
+  if (!$Timeout) {
+    # timelimit will be recomputed later based on number of vms
+    $timelimit = $basetime
+  }
+  else {
+    $timelimit = $Timeout
+  }
+
+  ShowProgress $startTime $timelimit $activity -Status "Login to Azure..." -id 1
   Prepare-AcmAzureCtx $SubscriptionId | Out-Null
+
+  ShowProgress $startTime $timelimit $activity -Status "Preparing for jobs..." -id 1
 
   $jobs = @()
   $names = @($null)
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
   $storageAccount = (Get-AzStorageAccount -ResourceGroupName $acmRg.ResourceGroupName)[0]
+  $vms = Get-AzVm -ResourceGroupName $ResourceGroup
+  $vmssSet = Get-AzVmss -ResourceGroupName $ResourceGroup
 
-  ShowProgress $startTime $Timeout $activity -Status "Starting jobs..." -id 1
+  if (!$Timeout) {
+    $total = $vms.Count + $vmssSet.Count
+    $timelimit = $basetime * ([math]::Truncate($total / $ConcurrentLimit))
+    if (($total % $ConcurrentLimit) -gt 0) {
+      $timelimit += $basetime
+    }
+  }
+
+  ShowProgress $startTime $timelimit $activity -Status "Starting jobs..." -id 1
 
   # Configure storage information for the resource group
   Write-Host "Setting storage configuration for resource group $ResourceGroup..."
@@ -457,8 +481,6 @@ function Add-AcmCluster {
 
   # Register each vm and vm scale set to ACM
   Write-Host "Adding VMs and VM scale sets from resource group $ResourceGroup..."
-  $vms = Get-AzVm -ResourceGroupName $ResourceGroup
-  $vmssSet = Get-AzVmss -ResourceGroupName $ResourceGroup
 
   # TODO: Apply -ThrottleLimit of Start-ThreadJob based on total jobs
   foreach ($vm in $vms) {
@@ -470,10 +492,10 @@ function Add-AcmCluster {
     $names += $vmss.Name
   }
 
-  Wait-AcmJob $jobs $startTime $Timeout $activity -ProgId 1
+  Wait-AcmJob $jobs $startTime $timelimit $activity -ProgId 1
 
   if (!$RetainJobs) {
-    ShowProgress $startTime $Timeout $activity -Status "Cleaning jobs..." -id 1
+    ShowProgress $startTime $timelimit $activity -Status "Cleaning jobs..." -id 1
     $ids = $jobs.foreach('Id')
     Remove-AcmJob $ids
   }
