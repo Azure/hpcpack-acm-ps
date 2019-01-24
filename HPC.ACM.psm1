@@ -313,23 +313,24 @@ function ShowProgress {
 
   $now = Get-Date
   $elapsed = ($now - $startTime).TotalSeconds
-  $remains = $timeout - $elapsed
-  $percent = $elapsed * 100 / $timeout
-  # TODO: Use splatting args instead of invoke-expression
-  $cmd = "Write-Progress -Activity '$($activity)' -PercentComplete $($percent) -SecondsRemaining $($remains)"
+  $args = @{
+    Activity = $activity
+    PercentComplete = $elapsed * 100 / $timeout
+    SecondsRemaining = $timeout - $elapsed
+  }
   if ($id) {
-    $cmd += " -Id $($id)"
+    $args['Id'] = $id
   }
   if ($pid) {
-    $cmd += " -ParentId $($pid)"
+    $args['ParentId'] = $pid
   }
   if ($status) {
-    $cmd += " -Status '$($status)'"
+    $args['Status'] = $status
   }
   if ($op) {
-    $cmd += " -CurrentOperation '$($op)'"
+    $args['CurrentOperation'] = $op
   }
-  Invoke-Expression $cmd
+  Write-Progress @args
 }
 
 function HideProgress {
