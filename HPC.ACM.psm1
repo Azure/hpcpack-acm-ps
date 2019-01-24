@@ -331,6 +331,11 @@ function ShowProgress {
   Invoke-Expression $cmd
 }
 
+function HideProgress {
+  param($id)
+  Write-Progress -Activity "END" -Completed -Id $id
+}
+
 function Wait-AcmJob {
   param($jobs, $startTime, $timeout, $activity, $progId)
 
@@ -467,9 +472,11 @@ function Add-AcmCluster {
   Wait-AcmJob $jobs $startTime $Timeout $activity -ProgId 1
 
   if (!$RetainJobs) {
+    ShowProgress $startTime $Timeout $activity -Status "Cleaning jobs..." -id 1
     $ids = $jobs.foreach('Id')
     Remove-AcmJob $ids
   }
+  HideProgress 1
 
   $result = CollectResult $names $jobs
   if ($Return) {
@@ -533,9 +540,11 @@ function Remove-AcmCluster {
   Wait-AcmJob $jobs $startTime $Timeout $activity -ProgId 1
 
   if (!$RetainJobs) {
+    ShowProgress $startTime $Timeout $activity -Status "Cleaning jobs..." -id 1
     $ids = $jobs.foreach('Id')
     Remove-AcmJob $ids
   }
+  HideProgress 1
 
   $result = CollectResult $names $jobs
   if ($Return) {
@@ -626,6 +635,10 @@ function Test-AcmCluster {
     $goodNodes = $null
     $goodCount = 0
   }
+
+  HideProgress 1
+
+  Write-Host "Generating result..."
 
   $nodes = $nodes.foreach({
     $val = [ordered]@{
