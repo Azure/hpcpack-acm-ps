@@ -308,8 +308,31 @@ function Prepare-AcmAzureCtx {
   Select-AzSubscription -SubscriptionId $SubscriptionId
 }
 
+function ShowProgress {
+  param($startTime, $timeout, $activity, $status, $op, $id, $pid)
+
+  $now = Get-Date
+  $elapsed = ($now - $startTime).TotalSeconds
+  $remains = $timeout - $elapsed
+  $percent = $elapsed * 100 / $timeout
+  $cmd = "Write-Progress -Activity '$($activity)' -PercentComplete $($percent) -SecondsRemaining $($remains)"
+  if ($id) {
+    $cmd += " -Id $($id)"
+  }
+  if ($pid) {
+    $cmd += " -ParentId $($pid)"
+  }
+  if ($status) {
+    $cmd += " -Status '$($status)'"
+  }
+  if ($op) {
+    $cmd += " -CurrentOperation '$($op)'"
+  }
+  Invoke-Expression $cmd
+}
+
 function Wait-AcmJob {
-  param($jobs, $startTime, $timeout, $activity)
+  param($jobs, $startTime, $timeout, $activity, $progId)
 
   $ids = $jobs.foreach('id')
   while ($true) {
@@ -323,10 +346,8 @@ function Wait-AcmJob {
     if ($doneJobCount -eq $ids.Count) {
       break
     }
-
-    $percent = $elapsed * 100 / $timeout
-    Write-Progress -PercentComplete $percent -Activity $activity `
-      -CurrentOperation "Completed jobs: $($doneJobCount)/$($jobs.Count)"
+    ShowProgress $startTime $timeout $activity -Status "Waiting jobs to finish...." `
+      -Op "Completed jobs: $($doneJobCount)/$($jobs.Count)" -Id $progId
 
     # NOTE: DO NOT simply
     #
@@ -412,12 +433,17 @@ function Add-AcmCluster {
   )
 
   $startTime = Get-Date
+  $activity = 'Adding cluster to ACM service...'
+
+  ShowProgress $startTime $Timeout $activity -Status "Login to Azure..." -id 1
   Prepare-AcmAzureCtx $SubscriptionId | Out-Null
 
   $jobs = @()
   $names = @($null)
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
   $storageAccount = (Get-AzStorageAccount -ResourceGroupName $acmRg.ResourceGroupName)[0]
+
+  ShowProgress $startTime $Timeout $activity -Status "Starting jobs..." -id 1
 
   # Configure storage information for the resource group
   Write-Host "Setting storage configuration for resource group $ResourceGroup..."
@@ -438,7 +464,7 @@ function Add-AcmCluster {
     $names += $vmss.Name
   }
 
-  Wait-AcmJob $jobs $startTime $Timeout 'Adding VMs and VM scale sets to ACM service...'
+  Wait-AcmJob $jobs $startTime $Timeout $activity -ProgId 1
 
   if (!$RetainJobs) {
     $ids = $jobs.foreach('Id')
@@ -474,12 +500,17 @@ function Remove-AcmCluster {
   )
 
   $startTime = Get-Date
+  $activity = 'Removing cluster from ACM service...'
+
+  ShowProgress $startTime $Timeout $activity -Status "Login to Azure..." -id 1
   Prepare-AcmAzureCtx $SubscriptionId | Out-Null
 
   $jobs = @()
   $names = @($null)
   $acmRg = Get-AzResourceGroup -Name $AcmResourceGroup
   $storageAccount = (Get-AzStorageAccount -ResourceGroupName $acmRg.ResourceGroupName)[0]
+
+  ShowProgress $startTime $Timeout $activity -Status "Starting jobs..." -id 1
 
   # Configure storage information for the resource group
   Write-Host "Resetting storage configuration for resource group $ResourceGroup..."
@@ -499,7 +530,7 @@ function Remove-AcmCluster {
     $names += $vmss.Name
   }
 
-  Wait-AcmJob $jobs $startTime $Timeout 'Removing VMs and VM scale sets from ACM service...'
+  Wait-AcmJob $jobs $startTime $Timeout $activity -ProgId 1
 
   if (!$RetainJobs) {
     $ids = $jobs.foreach('Id')
