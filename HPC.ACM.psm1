@@ -494,7 +494,6 @@ function Initialize-AcmCluster {
   }
 
   # Register each vm and vm scale set to ACM
-  # TODO: Apply -ThrottleLimit of Start-ThreadJob based on total jobs
   foreach ($vm in $vms) {
     if ($Uninitialize) {
       $func = ${function:Remove-AcmVm}
@@ -502,7 +501,8 @@ function Initialize-AcmCluster {
     else {
       $func = ${function:Add-AcmVm}
     }
-    $jobs += Start-ThreadJob -ScriptBlock $func -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func `
+      -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
     $names += $vm.Name
   }
   foreach ($vmss in $vmssSet) {
@@ -512,7 +512,8 @@ function Initialize-AcmCluster {
     else {
       $func = ${function:Add-AcmVmScaleSet}
     }
-    $jobs += Start-ThreadJob -ScriptBlock $func -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func `
+      -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
     $names += $vmss.Name
   }
 
