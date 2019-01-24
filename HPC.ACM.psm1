@@ -348,9 +348,7 @@ function Wait-AcmJob {
       break
     }
     # TODO: Optimize counting?
-    $doneJobCount = $(Get-Job -Id $ids).where({
-      # TODO: Use "-in" for state test
-      $_.state -eq 'Completed' -or $_.state -eq 'Failed' -or $_.state -eq 'Stopped' }).Count
+    $doneJobCount = $(Get-Job -Id $ids).where({ $_.state -in 'Completed', 'Failed', 'Stopped' }).Count
     if ($doneJobCount -eq $ids.Count) {
       break
     }
