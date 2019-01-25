@@ -629,12 +629,14 @@ function Remove-AcmCluster {
 function Wait-AcmDiagnosticJob {
   param($job, $conn, $startTime, $timeout, $activity, $status, $progId)
 
+  $finished = $false
   while ($true) {
     $elapsed = ($(Get-Date) - $startTime).TotalSeconds
     if ($elapsed -ge $Timeout) {
       break
     }
     if (($job.State -eq "Finished") -or ($job.State -eq "Failed") -or ($job.State -eq "Canceled")) {
+      $finished = $true
       break
     }
     $op = "Diagnostic job state: $($job.State)"
@@ -642,7 +644,7 @@ function Wait-AcmDiagnosticJob {
     $job = Get-AcmDiagnosticJob -Id $job.Id -Connection $conn
     Start-Sleep 1
   }
-  return $job
+  return $finished
 }
 
 function Test-AcmCluster {
@@ -714,7 +716,10 @@ function Test-AcmCluster {
     ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
-    Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1 | Out-Null
+    $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
+    if (!$finished) {
+      throw "Prerequisite installation timed out. Job id: $($job.id)"
+    }
 
     # Then, do test
     $status = "Performing test on nodes..."
@@ -722,7 +727,10 @@ function Test-AcmCluster {
     ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
-    Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1 | Out-Null
+    $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
+    if (!$finished) {
+      throw "Test job timed out. Job id: $($job.id)"
+    }
 
     # Finally, get aggreation result
     $status = "Fetching test aggregation result..."
