@@ -738,7 +738,11 @@ function Test-AcmCluster {
 
     $testResult = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
     $testResult = ConvertFrom-JsonNewtonsoft $testResult.ToString()
-    $goodNodes = New-Object -TypeName System.Collections.Generic.HashSet[string] -ArgumentList @(,$testResult['GoodNodes'])
+
+    # NOTE: Conversion to [string[]] is required, otherwise creating object will fail as
+    # it can't find a proper constructor for HashSet type.
+    $goodNodes = New-Object -TypeName System.Collections.Generic.HashSet[string] `
+      -ArgumentList @(, ($testResult['GoodNodes'] -as [string[]]))
     $goodCount = $goodNodes.Count
   }
   else {
