@@ -1,32 +1,6 @@
-function HasVmAgent {
-  param($vm)
-
-  $extensions = $vm.Extensions
-  if ($extensions) {
-    for ($i = 0; $i -lt $extensions.Count; $i++) {
-      if ($extensions[$i].Id -like '*/extensions/HpcAcmAgent') {
-        return $true
-      }
-    }
-  }
-  return $false
-}
-
-function HasVmssAgent {
-  param($vmss)
-
-  $extensions = $vmss.VirtualMachineProfile.ExtensionProfile.Extensions
-  if ($extensions) {
-    for ($i = 0; $i -lt $extensions.Count; $i++) {
-      if ($extensions[$i].Name -eq 'HpcAcmAgent') {
-        return $true
-      }
-    }
-  }
-  return $false
-}
-
 # TODO: need login?
+# NOTE: This function is called as a script block by Start-ThreadJob AND THUS
+# CAN NOT CALL ANY OTHER INTERNAL FUNCTIONS DIRECTLY. This may need to be FIXED.
 function Add-AcmVm {
   param(
     [Parameter(Mandatory = $true)]
@@ -84,7 +58,15 @@ function Add-AcmVm {
   Write-Host "Install HpcAcmAgent for VM $($vm.Name)"
   $hasExistingAgent = $false
   if ($useExistingAgent) {
-    $hasExistingAgent = HasVmAgent $vm
+    $extensions = $vm.Extensions
+    if ($extensions) {
+      for ($i = 0; $i -lt $extensions.Count; $i++) {
+        if ($extensions[$i].Id -like '*/extensions/HpcAcmAgent') {
+          $hasExistingAgent = $true
+          break
+        }
+      }
+    }
     Write-Host "VM $($vm.Name) has existing agent: $($hasExistingAgent)"
   }
   else {
@@ -211,7 +193,15 @@ function Add-AcmVmScaleSet {
   Write-Host "Install HpcAcmAgent for VM Scale Set $($vmss.Name)"
   $hasExistingAgent = $false
   if ($useExistingAgent) {
-    $hasExistingAgent = HasVmssAgent $vmss
+    $extensions = $vmss.VirtualMachineProfile.ExtensionProfile.Extensions
+    if ($extensions) {
+      for ($i = 0; $i -lt $extensions.Count; $i++) {
+        if ($extensions[$i].Name -eq 'HpcAcmAgent') {
+          $hasExistingAgent = $true
+          break
+        }
+      }
+    }
     Write-Host "VM scale set $($vmss.Name) has existing agent: $($hasExistingAgent)"
   }
   else {
