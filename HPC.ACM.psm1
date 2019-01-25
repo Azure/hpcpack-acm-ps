@@ -578,10 +578,10 @@ function Initialize-AcmCluster {
   HideProgress 1
 
   $result = CollectResult $names $jobs
+  OutputResult $result
   if ($Return) {
     return $result
   }
-  OutputResult $result
 }
 
 function Add-AcmCluster {
@@ -757,10 +757,6 @@ function Test-AcmCluster {
     [PSCustomObject]$val
   })
 
-  if ($Return) {
-    return $nodes
-  }
-
   $nodes | Sort-Object -Property InTest, Good, Name |
     Format-Table -Property @{Name = 'Node'; Expression = {$_.Name}}, InTest, Good -Wrap | Out-Default
 
@@ -771,6 +767,10 @@ function Test-AcmCluster {
       Percent = "$('{0:0.00}' -f ($goodCount * 100 / $nodes.Count))%"
     }
     $summary | Format-Table -Property Total, Good, Percent -Wrap | Out-Default
+  }
+
+  if ($Return) {
+    return $nodes
   }
 }
 
