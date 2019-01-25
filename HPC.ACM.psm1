@@ -826,22 +826,26 @@ function New-AcmTest {
 
     [switch] $UseExistingAgent,
 
+    [switch] $NoSetup,
+
     [int] $SetupTimeout,
 
     [int] $TestTimeout
   )
 
-  Write-Host "Adding cluster to ACM service..."
-  $args = @{
-    SubscriptionId = $SubscriptionId
-    ResourceGroup = $ResourceGroup
-    AcmResourceGroup = $AcmResourceGroup
-    UseExistingAgent = $UseExistingAgent
+  if (!$NoSetup) {
+    Write-Host "Adding cluster to ACM service..."
+    $args = @{
+      SubscriptionId = $SubscriptionId
+      ResourceGroup = $ResourceGroup
+      AcmResourceGroup = $AcmResourceGroup
+      UseExistingAgent = $UseExistingAgent
+    }
+    if ($SetupTimeout) {
+      $args['Timeout'] = $SetupTimeout
+    }
+    Add-AcmCluster @args
   }
-  if ($SetupTimeout) {
-    $args['Timeout'] = $SetupTimeout
-  }
-  Add-AcmCluster @args
 
   Write-Host "Getting ACM service app configuration..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
