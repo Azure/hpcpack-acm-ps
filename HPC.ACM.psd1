@@ -45,9 +45,13 @@ Description = 'Cmdlets for HPC ACM operations, including add/remove/test cluster
 # Modules that must be imported into the global environment prior to importing this module
 #
 # NOTE: Module 'Az' should be included here but can't because a bug in PowerShell breaks Publish-Module
-# when 'Az' is included here. See https://github.com/PowerShell/PowerShell/issues/8125
-#
-RequiredModules = @('ThreadJob', 'newtonsoft.json', 'HPC.ACM.API.PS')
+# when 'Az' is included. See https://github.com/PowerShell/PowerShell/issues/8125
+
+RequiredModules = @(
+  'ThreadJob',
+  'newtonsoft.json',
+  @{ ModuleName = 'HPC.ACM.API.PS'; ModuleVersion = '1.2.0' }
+)
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()
