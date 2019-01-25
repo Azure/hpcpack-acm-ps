@@ -669,7 +669,7 @@ function Test-AcmCluster {
   # The meanings of basetime and basesize are:
   # every basesize number of nodes requires basetime to run
   $basetime = 600
-  $basesize = 90
+  $basesize = 80
 
   if (!$Timeout) {
     # timelimit will be recomputed later based on number of test nodes
@@ -702,11 +702,10 @@ function Test-AcmCluster {
   $names = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' }).foreach('Name')
   if ($names.Count -gt 0) {
     if (!$Timeout) {
-      # Recompute timelimit based on node number, and also ensure a minimum time.
-      $timelimit = $nodes.Count * $basetime / $basesize
-      $mintime = $basetime / 2
-      if ($timelimit -lt $mintime) {
-        $timelimit = $mintime
+      # Recompute timelimit based on node number.
+      $timelimit = [Math]::Truncate($nodes.Count / $basesize) * $basetime
+      if ($nodes.Count % $basesize -gt 0) {
+        $timelimit += $basetime
       }
     }
 
