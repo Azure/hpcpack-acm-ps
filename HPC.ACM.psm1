@@ -1,3 +1,30 @@
+function HasVmAgent {
+  param($vm)
+
+  $extensions = $vm.Extensions
+  if ($extensions) {
+    for ($i = 0; $i -lt $extensions.Count; $i++) {
+      if ($extensions[$i].Id -like '*/extensions/HpcAcmAgent') {
+        return $true
+      }
+    }
+  }
+  return $false
+}
+
+function HasVmssAgent {
+  param($vmss)
+
+  $extensions = $vmss.VirtualMachineProfile.ExtensionProfile.Extensions
+  if ($extensions) {
+    for ($i = 0; $i -lt $extensions.Count; $i++) {
+      if ($extensions[$i].Name -eq 'HpcAcmAgent') {
+        return $true
+      }
+    }
+  }
+  return $false
+}
 
 # TODO: need login?
 function Add-AcmVm {
@@ -9,7 +36,10 @@ function Add-AcmVm {
     [string] $storageAccountName,
 
     [Parameter(Mandatory = $true)]
-    [string] $storageAccountRG
+    [string] $storageAccountRG,
+
+    # NOTE: [switch] type can't be passed in an argument list, which is required by Start-ThreadJob.
+    [bool] $useExistingAgent = $false
   )
 
   Write-Host "Enable MSI for VM $($vm.Name)"
@@ -52,21 +82,30 @@ function Add-AcmVm {
   }
 
   Write-Host "Install HpcAcmAgent for VM $($vm.Name)"
-  # TODO: Keep it if it is there?
-  try {
-    Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
-  }
-  catch {
-    Write-Host "Caught exception: $($_)"
-  }
-  if ($vm.OSProfile.LinuxConfiguration) {
-    $extesionType = "HpcAcmAgent"
+  $hasExistingAgent = $false
+  if ($useExistingAgent) {
+    $hasExistingAgent = HasVmAgent $vm
+    Write-Host "VM $($vm.Name) has existing agent: $($hasExistingAgent)"
   }
   else {
-    # Suppose there're only Linux and Windows
-    $extesionType = "HpcAcmAgentWin"
+    Write-Host "Try to remove existing agent from VM $($vm.Name)"
+    try {
+      Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
+    }
+    catch {}
   }
-  Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
+
+  if (!$hasExistingAgent) {
+    if ($vm.OSProfile.LinuxConfiguration) {
+      $extesionType = "HpcAcmAgent"
+    }
+    else {
+      # Suppose there're only Linux and Windows
+      $extesionType = "HpcAcmAgentWin"
+    }
+    Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName `
+      -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
+  }
 }
 
 function Remove-AcmVm {
@@ -125,7 +164,10 @@ function Add-AcmVmScaleSet {
     [string] $storageAccountName,
 
     [Parameter(Mandatory = $true)]
-    [string] $storageAccountRG
+    [string] $storageAccountRG,
+
+    # NOTE: [switch] type can't be passed in an argument list, which is required by Start-ThreadJob.
+    [bool] $useExistingAgent = $false
   )
 
   Write-Host "Enable MSI for VM Scale Set $($vmss.Name)"
@@ -167,26 +209,34 @@ function Add-AcmVmScaleSet {
   }
 
   Write-Host "Install HpcAcmAgent for VM Scale Set $($vmss.Name)"
-  # TODO: Keep it if it is there?
-  try {
-    Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
+  $hasExistingAgent = $false
+  if ($useExistingAgent) {
+    $hasExistingAgent = HasVmssAgent $vmss
+    Write-Host "VM scale set $($vmss.Name) has existing agent: $($hasExistingAgent)"
+  }
+  else {
+    Write-Host "Try to remove existing agent from VM scale set $($vmss.Name)"
+    try {
+      Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
+      Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
+      Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
+    }
+    catch {}
+  }
+
+  if (!$hasExistingAgent) {
+    if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
+      $extesionType = "HpcAcmAgent"
+    }
+    else {
+      # Suppose there're only Linux and Windows
+      $extesionType = "HpcAcmAgentWin"
+    }
+    Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" `
+      -Type $extesionType -TypeHandlerVersion 1.0
     Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
     Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
   }
-  catch {
-    Write-Host "Caught exception: $($_)"
-  }
-
-  if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
-    $extesionType = "HpcAcmAgent"
-  }
-  else {
-    # Suppose there're only Linux and Windows
-    $extesionType = "HpcAcmAgentWin"
-  }
-  Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" -Type $extesionType -TypeHandlerVersion 1.0
-  Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
-  Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
 }
 
 function Remove-AcmVmScaleSet {
@@ -428,21 +478,18 @@ function Initialize-AcmCluster {
     [Parameter(Mandatory = $true)]
     [string] $AcmResourceGroup,
 
-    [Parameter(Mandatory = $false)]
     [int] $Timeout,
 
     # NOTE: Do not change the default value and do not provide a bigger one,
     # as Start-ThreadJob won't accept a value > 50 and will raise an error.
-    [Parameter(Mandatory = $false)]
     [int] $ConcurrentLimit = 50,
 
-    [Parameter(Mandatory = $false)]
     [switch] $RetainJobs,
 
-    [Parameter(Mandatory = $false)]
     [switch] $Return,
 
-    [Parameter(Mandatory = $false)]
+    [switch] $UseExistingAgent,
+
     [switch] $Uninitialize
   )
 
@@ -497,25 +544,27 @@ function Initialize-AcmCluster {
 
   # Register each vm and vm scale set to ACM
   foreach ($vm in $vms) {
+    $args = $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
     if ($Uninitialize) {
       $func = ${function:Remove-AcmVm}
     }
     else {
       $func = ${function:Add-AcmVm}
+      $args += $UseExistingAgent
     }
-    $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func `
-      -ArgumentList $vm, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func -ArgumentList $args
     $names += $vm.Name
   }
   foreach ($vmss in $vmssSet) {
+    $args = $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
     if ($Uninitialize) {
       $func = ${function:Remove-AcmVmScaleSet}
     }
     else {
       $func = ${function:Add-AcmVmScaleSet}
+      $args += $UseExistingAgent
     }
-    $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func `
-      -ArgumentList $vmss, $storageAccount.StorageAccountName, $storageAccount.ResourceGroupName
+    $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func -ArgumentList $args
     $names += $vmss.Name
   }
 
@@ -546,14 +595,13 @@ function Add-AcmCluster {
     [Parameter(Mandatory = $true)]
     [string] $AcmResourceGroup,
 
-    [Parameter(Mandatory = $false)]
     [int] $Timeout,
 
-    [Parameter(Mandatory = $false)]
     [switch] $RetainJobs,
 
-    [Parameter(Mandatory = $false)]
-    [switch] $Return
+    [switch] $Return,
+
+    [switch] $UseExistingAgent
   )
   Initialize-AcmCluster @PSBoundParameters
 }
@@ -569,13 +617,10 @@ function Remove-AcmCluster {
     [Parameter(Mandatory = $true)]
     [string] $AcmResourceGroup,
 
-    [Parameter(Mandatory = $false)]
     [int] $Timeout = 180,
 
-    [Parameter(Mandatory = $false)]
     [switch] $RetainJobs,
 
-    [Parameter(Mandatory = $false)]
     [switch] $Return
   )
   Initialize-AcmCluster @PSBoundParameters -Uninitialize
@@ -766,11 +811,14 @@ function New-AcmTest {
     [string] $AcmResourceGroup,
 
     [Parameter(Mandatory = $true)]
-    [string] $SubscriptionId
+    [string] $SubscriptionId,
+
+    [switch] $UseExistingAgent
   )
 
   Write-Host "Adding cluster to ACM service..."
-  Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup
+  Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup `
+    -UseExistingAgent:$UseExistingAgent
 
   Write-Host "Getting ACM service app configuration..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
