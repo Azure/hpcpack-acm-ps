@@ -617,7 +617,7 @@ function Remove-AcmCluster {
     [Parameter(Mandatory = $true)]
     [string] $AcmResourceGroup,
 
-    [int] $Timeout = 180,
+    [int] $Timeout,
 
     [switch] $RetainJobs,
 
@@ -820,12 +820,24 @@ function New-AcmTest {
     [Parameter(Mandatory = $true)]
     [string] $SubscriptionId,
 
-    [switch] $UseExistingAgent
+    [switch] $UseExistingAgent,
+
+    [int] $SetupTimeout,
+
+    [int] $TestTimeout
   )
 
   Write-Host "Adding cluster to ACM service..."
-  Add-AcmCluster -SubscriptionId $SubscriptionId -ResourceGroup $ResourceGroup -AcmResourceGroup $AcmResourceGroup `
-    -UseExistingAgent:$UseExistingAgent
+  $args = @{
+    SubscriptionId = $SubscriptionId
+    ResourceGroup = $ResourceGroup
+    AcmResourceGroup = $AcmResourceGroup
+    UseExistingAgent = $UseExistingAgent
+  }
+  if ($SetupTimeout) {
+    $args['Timeout'] = $SetupTimeout
+  }
+  Add-AcmCluster @args
 
   Write-Host "Getting ACM service app configuration..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
@@ -834,6 +846,8 @@ function New-AcmTest {
   }
 
   Write-Host "Testing cluster in ACM service..."
-  Test-AcmCluster -IssuerUrl $app['IssuerUrl'] -ClientId $app['ClientId'] -ClientSecret $app['ClientSecret'] `
-    -ApiBasePoint $app['ApiBasePoint']
+  if ($TestTimeout) {
+    $app['Timeout'] = $TestTimeout
+  }
+  Test-AcmCluster @app
 }
