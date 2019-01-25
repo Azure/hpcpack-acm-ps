@@ -4,10 +4,10 @@
 RootModule = 'HPC.ACM.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.2.0'
+ModuleVersion = '1.2.3'
 
 # Supported PSEditions
-# CompatiblePSEditions = @()
+CompatiblePSEditions = @('Core', 'Desktop')
 
 # ID used to uniquely identify this module
 GUID = '0039bf83-08ea-49a4-9eef-27ba7dc9e11f'
@@ -25,7 +25,7 @@ Copyright = '(c) 2019 Microsoft. All rights reserved.'
 Description = 'Cmdlets for HPC ACM operations, including add/remove/test cluster of Azure VMs/VM scale sets to ACM service.'
 
 # Minimum version of the Windows PowerShell engine required by this module
-# PowerShellVersion = ''
+PowerShellVersion = '5.1'
 
 # Name of the Windows PowerShell host required by this module
 # PowerShellHostName = ''
