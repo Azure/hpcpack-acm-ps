@@ -420,6 +420,7 @@ function Remove-AcmJob {
   # Remove-Job somtimes don't return even with "-Force". So do it in another job and forget it.
   Start-ThreadJob -ScriptBlock {
     param($ids)
+    Stop-Job -Id $ids
     Remove-Job -Force -Id $ids
   } -ArgumentList $ids | Out-Null
 }
