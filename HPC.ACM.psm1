@@ -492,7 +492,7 @@ function Initialize-AcmCluster {
     $activity = 'Adding cluster to ACM service...'
   }
 
-  $basetime = 180 # Max time to add one VM/VM scale set
+  $basetime = 360 # Max time to add one VM/VM scale set
   if (!$Timeout) {
     # timelimit will be recomputed later based on number of vms
     $timelimit = $basetime
