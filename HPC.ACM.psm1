@@ -760,10 +760,10 @@ function Test-AcmCluster {
   })
 
   $nodes | Sort-Object -Property InTest, Good, Name |
-    Format-Table -Wrap -Property
-      @{Name = 'Node'; Expression = {$_.Name}},
-      @{Name = 'Good for test'; Expression = {$_.InTest}},
-      @{Name = 'Good in MPI pingpong'; Expression = {$_.Good}} | Out-Default
+    Format-Table -Wrap -Property `
+      @{Name = 'Node'; Expression = {$_.Name}}, `
+      @{Name = 'Good for Test'; Expression = {$_.InTest}}, `
+      @{Name = 'Good in MPI Pingpong'; Expression = {$_.Good}} | Out-Default
 
   if ($nodes.Count -gt 0) {
     $summary = [PSCustomObject]@{
