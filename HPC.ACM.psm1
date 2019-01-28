@@ -576,6 +576,35 @@ function Initialize-AcmCluster {
 }
 
 function Add-AcmCluster {
+<#
+.SYNOPSIS
+Add an Azure cluster of VMs/VM scale sets to ACM.
+
+.PARAMETER ResourceGroup
+The name of an Azure resource group containing the VMs/VM scale sets to test.
+
+.PARAMETER AcmResourceGroup
+The name of an Azure resource group containing the ACM service.
+
+.PARAMETER SubscriptionId
+The ID of an Azure subscription containing both the ResourceGroup and AcmResourceGroup.
+
+.PARAMETER Timeout
+The timeout value for adding cluster to Acm. By default, an estimated value will be set based on the number of VMs/VM scale sets in a cluster. A value shorter than necesssary will fail the setup procedure. You could specify a larger value to ensure the success of setup.
+
+.PARAMETER UseExistingAgent
+When adding a VM to ACM, use existing HPC ACM agent if any. By default, exising agent will be uninstalled before installing. This is to ensure the newest version is installed and may also fix problems of a bad installation. But it takes longer time. This switch may save some time on VM setup by reusing existing agent, but has the risk of reusing a bad agent.
+
+.PARAMETER RetainJobs
+Do not remove PowerShell jobs after. This is for checking the job state for debug purpose.
+
+.PARAMETER Return
+Return the result. By default, the function returns nothing.
+
+.EXAMPLE
+Add-AcmCluster -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster'
+Add a cluster of VMs/VM scale sets to ACM.
+#>
   param(
     [Parameter(Mandatory = $true)]
     [string] $SubscriptionId,
@@ -588,16 +617,42 @@ function Add-AcmCluster {
 
     [int] $Timeout,
 
+    [switch] $UseExistingAgent,
+
     [switch] $RetainJobs,
 
-    [switch] $Return,
-
-    [switch] $UseExistingAgent
+    [switch] $Return
   )
   Initialize-AcmCluster @PSBoundParameters
 }
 
 function Remove-AcmCluster {
+<#
+.SYNOPSIS
+Remove an Azure cluster of VMs/VM scale sets to ACM.
+
+.PARAMETER ResourceGroup
+The name of an Azure resource group containing the VMs/VM scale sets to test.
+
+.PARAMETER AcmResourceGroup
+The name of an Azure resource group containing the ACM service.
+
+.PARAMETER SubscriptionId
+The ID of an Azure subscription containing both the ResourceGroup and AcmResourceGroup.
+
+.PARAMETER Timeout
+The timeout value for adding cluster to Acm. By default, an estimated value will be set based on the number of VMs/VM scale sets in a cluster. A value shorter than necesssary will fail the setup procedure. You could specify a larger value to ensure the success of setup.
+
+.PARAMETER RetainJobs
+Do not remove PowerShell jobs after. This is for checking the job state for debug purpose.
+
+.PARAMETER Return
+Return the result. By default, the function returns nothing.
+
+.EXAMPLE
+Remove-AcmCluster -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster'
+Remove a cluster of VMs/VM scale sets from ACM.
+#>
   param(
     [Parameter(Mandatory = $true)]
     [string] $SubscriptionId,
@@ -638,6 +693,31 @@ function Wait-AcmDiagnosticJob {
   return $finished
 }
 
+<#
+.SYNOPSIS
+Test Azure cluster of VMs/VM scale sets in ACM.
+
+.PARAMETER ApiBasePoint
+The URL of ACM web service. The value can be found by the result of Get-AcmAppInfo.
+
+.PARAMETER IssuerUrl
+The issuer URL of ACM web service, may be empty if the ACM web service is not protected by Azure AD. The value can be found by the result of Get-AcmAppInfo.
+
+.PARAMETER ClientId
+The client id of ACM web service, may be empty if the ACM web service is not protected by Azure AD. The value can be found by the result of Get-AcmAppInfo.
+
+.PARAMETER ClientSecret
+The client secret of ACM web service, may be empty if the ACM web service is not protected by Azure AD. The value can be found by the result of Get-AcmAppInfo.
+
+.PARAMETER Timeout
+The timeout value for performing test on cluster. By default, an estimated value will be set based on the number of nodes in a cluster. A value shorter than necesssary will cause no test result, since the test can't complete without enough time. You could specify a larger value to ensure the test to complete.
+
+.PARAMETER Return
+Return the result. By default, the function returns nothing.
+
+.EXAMPLE
+  $app = Get-AcmAppInfo -SubscriptionId 'my-id' -ResourceGroup 'my-group'; Test-AcmCluster @app
+#>
 function Test-AcmCluster {
   param(
     [Parameter(Mandatory = $true)]
@@ -781,6 +861,16 @@ function Test-AcmCluster {
 
 # TODO: optional param: app name
 function Get-AcmAppInfo {
+<#
+.SYNOPSIS
+Get ACM app/service info for use of Test-AcmCluster.
+
+.PARAMETER ResourceGroup
+The name of an Azure resource group containing the ACM service.
+
+.PARAMETER SubscriptionId
+The ID of an Azure subscription containing the ResourceGroup.
+#>
   param(
     [Parameter(Mandatory = $true)]
     [string] $ResourceGroup,
@@ -808,6 +898,39 @@ function Get-AcmAppInfo {
 }
 
 function New-AcmTest {
+<#
+.SYNOPSIS
+Add an Azure cluster of VMs/VM scale sets to ACM and perform MPI Pingpong test on it.
+
+.PARAMETER ResourceGroup
+The name of an Azure resource group containing the VMs/VM scale sets to test.
+
+.PARAMETER AcmResourceGroup
+The name of an Azure resource group containing the ACM service.
+
+.PARAMETER SubscriptionId
+The ID of an Azure subscription containing both the ResourceGroup and AcmResourceGroup.
+
+.PARAMETER SetupTimeout
+The timeout value for adding cluster to Acm. By default, an estimated value will be set based on the number of VMs/VM scale sets in a cluster. A value shorter than necesssary will fail the setup procedure. You could specify a larger value to ensure the success of setup.
+
+.PARAMETER TestTimeout
+The timeout value for performing test on cluster. By default, an estimated value will be set based on the number of nodes in a cluster. A value shorter than necesssary will cause no test result, since the test can't complete without enough time. You could specify a larger value to ensure the test to complete.
+
+.PARAMETER NoSetup
+Do not add cluster to ACM but only do test on it. This is for repeated test on a cluster that already has been added to ACM.
+
+.PARAMETER UseExistingAgent
+When adding a VM to ACM, use existing HPC ACM agent if any. By default, exising agent will be uninstalled before installing. This is to ensure the newest version is installed and may also fix problems of a bad installation. But it takes longer time. This switch may save some time on VM setup by reusing existing agent, but has the risk of reusing a bad agent.
+
+.EXAMPLE
+New-AcmTest -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster'
+Perform test on a cluster of VMs/VM scale sets that has not been added to ACM before.
+
+.EXAMPLE
+New-AcmTest -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster' -NoSetup
+Perform test on a cluster of VMs/VM scale sets that has been added to ACM already.
+#>
   param(
     [Parameter(Mandatory = $true)]
     [string] $ResourceGroup,
@@ -818,13 +941,13 @@ function New-AcmTest {
     [Parameter(Mandatory = $true)]
     [string] $SubscriptionId,
 
-    [switch] $UseExistingAgent,
+    [int] $SetupTimeout,
+
+    [int] $TestTimeout,
 
     [switch] $NoSetup,
 
-    [int] $SetupTimeout,
-
-    [int] $TestTimeout
+    [switch] $UseExistingAgent
   )
 
   if (!$NoSetup) {
