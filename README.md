@@ -36,7 +36,7 @@ To use the module to test your Azure cluster, execute the following command unde
 New-AcmTest -SubscriptionId "YourSubscriptionId" -ResourceGroup "YourResourceGroupNameOfVmCluster" -AcmResourceGroup "YourResourceGroupNameOfAcmCluster" 2>error_log 6>info_log
 ```
 
-Replace the arguments for yours. The command records errors in file "error_log" and information output in file "info_log", both under the current working directory. 
+Replace the arguments for yours. The command records errors in file "error_log" and information output in file "info_log", both under the current working directory.
 
 The above command will output result like below(wiht comments inside beginning with #):
 
@@ -44,16 +44,16 @@ The above command will output result like below(wiht comments inside beginning w
 ###########################################################################
 #
 # Cluster setup result
-# Each VM/VM scale set in the cluster is added to ACM by a PowerShell job. 
-# "Completed" means a job is completed or not. Note: even when a job is 
-# completed, the VM/VM scale set may still fail in adding to ACM. Usually, 
+# Each VM/VM scale set in the cluster is added to ACM by a PowerShell job.
+# "Completed" means a job is completed or not. Note: even when a job is
+# completed, the VM/VM scale set may still fail in adding to ACM. Usually,
 # that's because required VM extension failed installing/starting on a Vm.
-# 
+#
 VM/VM Scale Set Completed JobId
---------------- --------- ----- 
-centos7500           True     2 
-centos7501           True     3 
-centos7502           True     4      
+--------------- --------- -----
+centos7500           True     2
+centos7501           True     3
+centos7502           True     4
 ...
 
 ###################################
@@ -69,7 +69,7 @@ Total Completed Percent
 # MPI Pingpong test result
 # "Good for Test" means a node is able to and has participated in the test.
 # "Good in MPI Pingpong" means a node passed the basic MPI Pingpong test.
-# 
+#
 Node       Good for Test Good in MPI Pingpong
 ----       ------------- --------------------
 centos7500          True                 True
@@ -85,6 +85,12 @@ Total Good Percent
 ----- ---- -------
    93   93 100.00%
 
+```
+
+For more help on `New-AcmTest`, execute the following command under your PowerShell:
+
+```
+help New-AcmTest -Detailed
 ```
 
 ### Run PowerShell Command outside of PowerShell
