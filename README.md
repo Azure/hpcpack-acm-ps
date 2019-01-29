@@ -38,6 +38,8 @@ New-AcmTest -SubscriptionId "YourSubscriptionId" -ResourceGroup "YourResourceGro
 
 Replace the arguments for yours. The command records errors in file "error_log" and information output in file "info_log", both under the current working directory.
 
+Note: for your first time to access any resource on Azure in PowerShell, you will be prompted to authenticate to Azure by accessing a given URL with a given code. After the authentication, your session data is saved locally and you won't be prompted again even if you exit the PowerShell and enter one again on the same computer. So to run an automation script in PowerShell, you could first login to Azure(by `Login-AzAccount` from module `Az`) on the same computer to avoid being prompted in the future.
+
 The above command will output result like below(with comments inside beginning with '#'):
 
 ```
