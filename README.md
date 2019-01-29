@@ -1,20 +1,20 @@
 # PowerShell Module for HPC Pack ACM
 
-The PowerShell module [HPC.ACM](https://www.powershellgallery.com/packages/HPC.ACM) is for testing a cluster of VMs/VM scale sets on Azure in basic MPI pingpong. It adds the cluster to deployed ACM service and then perform the test.
+The PowerShell module [HPC.ACM](https://www.powershellgallery.com/packages/HPC.ACM) is for performing basic MPI pingpong test for a cluster of VMs/VM scale sets on Azure. It adds the cluster to a deployed ACM service before the test.
 
 ## Prerequisites
 
-To use the module, you have to get PowerShell and install the Azure PowerShell module `Az` first. Of course you must have deployed an ACM cluster/service.
+To use the module, you have to get PowerShell and install the Azure PowerShell module `Az` first. Of course you must have deployed an ACM service.
 
 ### PowerShell
 
 Either PowerShell Core 6.1 or Windows PowerShell 5.1 is OK. For older versions of PowerShell Core(>=6.0) and Windows PowerShell(>= 5.0), it may work but without guaranty.
 
-PowerShell Core is available for Linux, Mac and Windows users, while Windows PowerShell is only for Windows. See [the doc here](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-6) for how to install it on your platform.
+PowerShell Core is available on Linux, Mac and Windows, while Windows PowerShell is only on Windows. See [the document here](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-6) for how to install it on your platform.
 
 ### Az
 
-[Az](https://www.powershellgallery.com/packages/Az/1.1.0) is the module for managing your resource on Azure. To install it, execute the following command under your PowerShell:
+[Az](https://www.powershellgallery.com/packages/Az/1.1.0) is the module for managing your resource on Azure. To install it, execute the following command under PowerShell:
 
 ```powershell
 Install-Module -Name Az -Scope CurrentUser
@@ -22,7 +22,7 @@ Install-Module -Name Az -Scope CurrentUser
 
 ## Installation
 
-To install HPC.ACM, execute the following command under your PowerShell:
+To install HPC.ACM, execute the following command under PowerShell:
 
 ```powershell
 Install-Module -Name HPC.ACM -Scope CurrentUser
@@ -30,7 +30,7 @@ Install-Module -Name HPC.ACM -Scope CurrentUser
 
 ## Usage
 
-To use the module to test your Azure cluster, execute the following command under your PowerShell:
+To use the module to test your Azure cluster, execute the following command under PowerShell:
 
 ```powershell
 New-AcmTest -SubscriptionId "YourSubscriptionId" -ResourceGroup "YourResourceGroupNameOfVmCluster" -AcmResourceGroup "YourResourceGroupNameOfAcmCluster" 2>error_log 6>info_log
@@ -89,7 +89,7 @@ Total Good Percent
 
 ```
 
-For more help on `New-AcmTest`, execute the following command under your PowerShell:
+For more help on `New-AcmTest`, execute the following command under PowerShell:
 
 ```
 help New-AcmTest -Detailed
