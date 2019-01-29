@@ -629,7 +629,7 @@ Add a cluster of VMs/VM scale sets to ACM.
 function Remove-AcmCluster {
 <#
 .SYNOPSIS
-Remove an Azure cluster of VMs/VM scale sets to ACM.
+Remove an Azure cluster of VMs/VM scale sets from ACM.
 
 .PARAMETER ResourceGroup
 The name of an Azure resource group containing the VMs/VM scale sets to test.
