@@ -38,7 +38,7 @@ New-AcmTest -SubscriptionId "YourSubscriptionId" -ResourceGroup "YourResourceGro
 
 Replace the arguments for yours. The command records errors in file "error_log" and information output in file "info_log", both under the current working directory.
 
-The above command will output result like below(wiht comments inside beginning with #):
+The above command will output result like below(with comments inside beginning with '#'):
 
 ```
 ###########################################################################
@@ -97,28 +97,28 @@ help New-AcmTest -Detailed
 
 When you want to run PowerShell command without opening a PowerShell first, you could:
 
-For PowerShell Core under Linux/Mac
+* For PowerShell Core under Linux/Mac
 
-```
-pwsh -Command "New-AcmTest ... 2>err_log 6>info_log"
-```
+  ```bash
+  pwsh -Command "New-AcmTest ... 2>err_log 6>info_log"
+  ```
 
-For Windows PowerShell
+* For Windows PowerShell
 
-```
-powershell -Command "..."
-```
+  ```
+  powershell -Command "..."
+  ```
 
-You could also save PowerShell commands in a `.ps1` file and execute it by
+You could also save PowerShell commands in a `.ps1` file and execute it by:
 
-For PowerShell Core under Linux/Mac
+* For PowerShell Core under Linux/Mac
 
-```
-pwsh -File your-file-path
-```
+  ```bash
+  pwsh -File your-file-path
+  ```
 
-For Windows PowerShell
+* For Windows PowerShell
 
-```
-powershell -File your-file-path
-```
+  ```
+  powershell -File your-file-path
+  ```
