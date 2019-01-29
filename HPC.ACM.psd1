@@ -4,7 +4,7 @@
 RootModule = 'HPC.ACM.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.3.3'
+ModuleVersion = '1.3.4'
 
 # Supported PSEditions
 CompatiblePSEditions = @('Core', 'Desktop')
@@ -50,7 +50,7 @@ PowerShellVersion = '5.1'
 RequiredModules = @(
   'ThreadJob',
   'newtonsoft.json',
-  @{ ModuleName = 'HPC.ACM.API.PS'; ModuleVersion = '1.2.0' }
+  @{ ModuleName = 'HPC.ACM.API.PS'; ModuleVersion = '1.3.0' }
 )
 
 # Assemblies that must be loaded prior to importing this module
