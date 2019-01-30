@@ -681,7 +681,7 @@ function Wait-AcmDiagnosticJob {
     if ($elapsed -ge $Timeout) {
       break
     }
-    if (($job.State -eq "Finished") -or ($job.State -eq "Failed") -or ($job.State -eq "Canceled")) {
+    if ($job.State -in "Finished", "Failed", "Canceled") {
       $finished = $true
       break
     }
@@ -770,25 +770,44 @@ function Test-AcmCluster {
   ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
   $nodes = Get-AcmNode -Connection $conn -Count 100000
-  $names = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' }).foreach('Name')
+  $nodesInTest = $nodes.where({ $_.Health -eq 'OK' -and $_.State -eq 'Online' })
+  $linuxNodeNames = $nodesInTest.where({ $_.NodeRegistrationInfo.DistroInfo -like '*Linux*' }).foreach('Name')
+  $winNodeNames = $nodesInTest.where({ $_.NodeRegistrationInfo.DistroInfo -like '*Windows*' }).foreach('Name')
+  $names = $linuxNodeNames + $winNodeNames
+
   if ($names.Count -gt 0) {
     if (!$Timeout) {
       # Recompute timelimit based on node number.
-      $timelimit = [Math]::Truncate($nodes.Count / $basesize) * $basetime
-      if ($nodes.Count % $basesize -gt 0) {
+      $timelimit = [Math]::Truncate($names.Count / $basesize) * $basetime
+      if ($names.Count % $basesize -gt 0) {
         $timelimit += $basetime
       }
+      $timelimit += 60 # Additional time for installation of prerequisites
     }
 
     # First, install necessary tools
-    $status = "Installing test prerequisites on nodes..."
-    Write-Host $status
-    ShowProgress $startTime $timelimit $activity -Status $status -id 1
+    if ($linuxNodeNames.Count -gt 0) {
+      $status = "Installing test prerequisites on Linux nodes..."
+      Write-Host $status
+      ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
-    $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'Prerequisite' -Name 'Intel MPI Installation'
-    $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
-    if (!$finished) {
-      throw "Prerequisite installation timed out. Job id: $($job.id)"
+      $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $linuxNodeNames -Category 'Prerequisite' -Name 'Intel MPI Installation'
+      $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
+      if (!$finished) {
+        throw "Linux prerequisite installation timed out. Job id: $($job.id)"
+      }
+    }
+
+    if ($winNodeNames.Count -gt 0) {
+      $status = "Installing test prerequisites on Windows nodes..."
+      Write-Host $status
+      ShowProgress $startTime $timelimit $activity -Status $status -id 1
+
+      $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $winNodeNames -Category 'Prerequisite' -Name 'Microsoft MPI Installation'
+      $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
+      if (!$finished) {
+        throw "Windows prerequisite installation timed out. Job id: $($job.id)"
+      }
     }
 
     # Then, do test
