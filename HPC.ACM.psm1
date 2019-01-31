@@ -658,8 +658,13 @@ Do not remove PowerShell jobs after. This is for checking the job state for debu
 .PARAMETER Return
 Return the result. By default, the function returns nothing.
 
+.NOTES
+The command will log a lot to screen. So it's better to redirect them to files. Do it like
+Add-AcmCluster ... 2>err_log 6>info_log
+It writes errors to file err_log and other information to file info_log.
+
 .EXAMPLE
-Add-AcmCluster -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster'
+Add-AcmCluster -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster' 2>err_log 6>info_log
 Add a cluster of VMs/VM scale sets to ACM.
 #>
   param(
@@ -772,8 +777,13 @@ The timeout value for performing test on cluster. By default, an estimated value
 .PARAMETER Return
 Return the result. By default, the function returns nothing.
 
+.NOTES
+The command will log a lot to screen. So it's better to redirect them to files. Do it like
+Test-AcmCluster ... 2>err_log 6>info_log
+It writes errors to file err_log and other information to file info_log.
+
 .EXAMPLE
-  $app = Get-AcmAppInfo -SubscriptionId 'my-id' -ResourceGroup 'my-group'; Test-AcmCluster @app
+  $app = Get-AcmAppInfo -SubscriptionId 'my-id' -ResourceGroup 'my-group'; Test-AcmCluster @app 2>err_log 6>info_log
 #>
 function Test-AcmCluster {
   param(
@@ -996,12 +1006,17 @@ Do not add cluster to ACM but only do test on it. This is for repeated test on a
 .PARAMETER UseExistingAgent
 When adding a VM to ACM, use existing HPC ACM agent if any. By default, exising agent will be uninstalled before installing. This is to ensure the newest version is installed and may also fix problems of a bad installation. But it takes longer time. This switch may save some time on VM setup by reusing existing agent, but has the risk of reusing a bad agent.
 
-.EXAMPLE
-New-AcmTest -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster'
-Perform test on a cluster of VMs/VM scale sets that has not been added to ACM before.
+.NOTES
+The command will log a lot to screen. So it's better to redirect them to files. Do it like
+New-AcmTest ... 2>err_log 6>info_log
+It writes errors to file err_log and other information to file info_log.
 
 .EXAMPLE
-New-AcmTest -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster' -NoSetup
+New-AcmTest -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster' 2>err_log 6>info_log
+Perform test on a cluster of VMs/VM scale sets that has not been added to ACM before. It also writes logs to files.
+
+.EXAMPLE
+New-AcmTest -SubscriptionId a486e243-747b-42de-8c4c-379f8295a746 -ResourceGroup 'my-cluster-1' -AcmResourceGroup 'my-acm-cluster' -NoSetup 2>err_log 6>info_log
 Perform test on a cluster of VMs/VM scale sets that has been added to ACM already.
 #>
   param(
