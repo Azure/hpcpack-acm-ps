@@ -359,7 +359,12 @@ function ShowProgress {
     [Parameter(Mandatory = $true)]
     $activity,
 
-    $status, $op, $id, $pid
+    $status,
+    $op,
+    $id,
+    $pid,
+
+    [switch] $nolog
   )
 
   $now = Get-Date
@@ -383,16 +388,18 @@ function ShowProgress {
   }
   Write-Progress @args
 
-  # Write log at the same time
-  $ts = $now.ToString('yyyy-MM-dd hh:mm:ss')
-  $msg = "[$($ts)][$($activity)]"
-  if ($status) {
-    $msg += "[$($status)]"
+  if (!$nolog) {
+    # Write log at the same time
+    $ts = $now.ToString('yyyy-MM-dd hh:mm:ss')
+    $msg = "[$($ts)][$($activity)]"
+    if ($status) {
+      $msg += "[$($status)]"
+    }
+    if ($op) {
+      $msg += "[$($op)]"
+    }
+    Write-Host $msg
   }
-  if ($op) {
-    $msg += "[$($op)]"
-  }
-  Write-Host $msg
 }
 
 function HideProgress {
@@ -599,7 +606,12 @@ function Initialize-AcmCluster {
 
       $status = "Waiting for $($time) seconds for nodes to register itself to ACM..."
       for ($i = 0; $i -lt $time; $i++) {
-        ShowProgress $startTime $timelimit $activity -Status $status -id 1
+        if ($i -eq 0) {
+          ShowProgress $startTime $timelimit $activity -Status $status -id 1
+        }
+        else {
+          ShowProgress $startTime $timelimit $activity -Status $status -id 1 -nolog
+        }
         Start-Sleep 1
       }
     }
