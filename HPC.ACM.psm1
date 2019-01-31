@@ -349,7 +349,18 @@ function Prepare-AcmAzureCtx {
 }
 
 function ShowProgress {
-  param($startTime, $timeout, $activity, $status, $op, $id, $pid)
+  param(
+    [Parameter(Mandatory = $true)]
+    $startTime,
+
+    [Parameter(Mandatory = $true)]
+    $timeout,
+
+    [Parameter(Mandatory = $true)]
+    $activity,
+
+    $status, $op, $id, $pid
+  )
 
   $now = Get-Date
   $elapsed = ($now - $startTime).TotalSeconds
@@ -371,6 +382,17 @@ function ShowProgress {
     $args['CurrentOperation'] = $op
   }
   Write-Progress @args
+
+  # Write log at the same time
+  $ts = $now.ToString('yyyy-MM-dd hh:mm:ss')
+  $msg = "[$($ts)][$($activity)]"
+  if ($status) {
+    $msg += "[$($status)]"
+  }
+  if ($op) {
+    $msg += "[$($op)]"
+  }
+  Write-Host $msg
 }
 
 function HideProgress {
@@ -392,7 +414,7 @@ function Wait-AcmJob {
     if ($doneJobCount -eq $ids.Count) {
       break
     }
-    ShowProgress $startTime $timeout $activity -Status "Waiting jobs to finish...." `
+    ShowProgress $startTime $timeout $activity -Status "Waiting jobs to finish..." `
       -Op "Completed jobs: $($doneJobCount)/$($jobs.Count)" -Id $progId
 
     # NOTE: DO NOT simply
@@ -575,8 +597,11 @@ function Initialize-AcmCluster {
         }
       }
 
-      ShowProgress $startTime $timelimit $activity -Status "Waiting for some time for nodes to register itself to ACM..." -id 1
-      Start-Sleep $time
+      $status = "Waiting for $($time) seconds for nodes to register itself to ACM..."
+      for ($i = 0; $i -lt $time; $i++) {
+        ShowProgress $startTime $timelimit $activity -Status $status -id 1
+        Start-Sleep 1
+      }
     }
   }
 
@@ -587,6 +612,7 @@ function Initialize-AcmCluster {
   }
   HideProgress 1
 
+  ShowProgress $startTime $timelimit $activity -Status "Ending..." -id 1
   $result = CollectResult $names $jobs
   OutputResult $result
   if ($Return) {
@@ -770,7 +796,6 @@ function Test-AcmCluster {
   }
 
   $status = "Connecting to ACM service..."
-  Write-Host $status
   ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
   $args = @{
@@ -785,7 +810,6 @@ function Test-AcmCluster {
   $conn = Connect-Acm @args
 
   $status = "Getting ACM nodes..."
-  Write-Host $status
   ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
   $nodes = Get-AcmNode -Connection $conn -Count 100000
@@ -809,7 +833,6 @@ function Test-AcmCluster {
     # First, install necessary tools
     if ($linuxNodeNames.Count -gt 0) {
       $status = "Installing test prerequisites on Linux nodes..."
-      Write-Host $status
       ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
       $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $linuxNodeNames -Category 'Prerequisite' -Name 'Intel MPI Installation'
@@ -821,7 +844,6 @@ function Test-AcmCluster {
 
     if ($winNodeNames.Count -gt 0) {
       $status = "Installing test prerequisites on Windows nodes..."
-      Write-Host $status
       ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
       $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $winNodeNames -Category 'Prerequisite' -Name 'Microsoft MPI Installation'
@@ -833,7 +855,6 @@ function Test-AcmCluster {
 
     # Then, do test
     $status = "Performing test on nodes..."
-    Write-Host $status
     ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
@@ -844,7 +865,6 @@ function Test-AcmCluster {
 
     # Finally, get aggreation result
     $status = "Fetching test aggregation result..."
-    Write-Host $status
     ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
     $testResult = Get-AcmDiagnosticJobAggregationResult -Connection $conn -Id $job.Id
@@ -863,7 +883,8 @@ function Test-AcmCluster {
 
   HideProgress 1
 
-  Write-Host "Generating result..."
+  $status = "Generating result..."
+  ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
   $nodes = $nodes.foreach({
     $val = [ordered]@{
