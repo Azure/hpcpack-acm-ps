@@ -561,6 +561,25 @@ function Initialize-AcmCluster {
 
   Wait-AcmJob $jobs $startTime $timelimit $activity -ProgId 1
 
+  if (!$Uninitialize) {
+    # Wait for some time for ACM agents to register itself to ACM
+    $timeLeft = ($(Get-Date) - $startTime).TotalSeconds
+    if (!$Timeout -or $timeLeft -lt $timelimit) {
+      $time = 120
+      if (!$Timeout) {
+        $timelimit += $time
+      }
+      else {
+        if ($timeLeft -lt $time) {
+          $time = $timeLeft
+        }
+      }
+
+      ShowProgress $startTime $timelimit $activity -Status "Waiting for some time for nodes to register itself to ACM..." -id 1
+      Start-Sleep $time
+    }
+  }
+
   if (!$RetainJobs) {
     ShowProgress $startTime $timelimit $activity -Status "Cleaning jobs..." -id 1
     $ids = $jobs.foreach('Id')
