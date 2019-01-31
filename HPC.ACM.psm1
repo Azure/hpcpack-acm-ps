@@ -775,6 +775,8 @@ function Test-AcmCluster {
   $winNodeNames = $nodesInTest.where({ $_.NodeRegistrationInfo.DistroInfo -like '*Windows*' }).foreach('Name')
   $names = $linuxNodeNames + $winNodeNames
 
+  Write-Host "There're $($nodes.Count) nodes in the cluster, among which there're $($linuxNodeNames.Count) Linux nodes and $($winNodeNames.Count) Windows nodes good for test."
+
   if ($names.Count -gt 0) {
     if (!$Timeout) {
       # Recompute timelimit based on node number.
