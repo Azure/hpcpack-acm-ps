@@ -85,8 +85,11 @@ function Add-AcmVm {
       # Suppose there're only Linux and Windows
       $extesionType = "HpcAcmAgentWin"
     }
-    Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName `
+    $result = Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName `
       -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
+    if (!$result.IsSuccessStatusCode) {
+      throw "Failed installing HpcAcmAgent for VM $($vm.Name)."
+    }
   }
 }
 
@@ -225,7 +228,10 @@ function Add-AcmVmScaleSet {
     Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" `
       -Type $extesionType -TypeHandlerVersion 1.0
     Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
-    Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
+    $result = Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
+    if ($result.Status -ne 'Succeeded') {
+      throw "Failed installing HpcAcmAgent for VM scale set $($vmss.Name)."
+    }
   }
 }
 
@@ -490,7 +496,7 @@ function CollectResult {
   for ($idx = 1; $idx -lt $names.Length; $idx++) {
     $result += [PSCustomObject]@{
       Name = $names[$idx]
-      Completed = $jobs[$idx].State -eq 'Completed'
+      JobState = $jobs[$idx].State
       JobId = $jobs[$idx].Id
     }
   }
@@ -501,12 +507,12 @@ function OutputResult {
   param($result)
 
   $result |
-    Sort-Object -Property Completed, Name |
-    Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, Completed, JobId -Wrap |
+    Sort-Object -Property JobState, Name |
+    Format-Table -Property @{Name = 'VM/VM Scale Set'; Expression = {$_.Name}}, JobState, JobId -Wrap |
     Out-Default
 
   if ($result.Count -gt 0) {
-    $completed = $result.where({ $_.Completed }).Count
+    $completed = $result.where({ $_.JobState -eq 'Completed' }).Count
     $summary = [PSCustomObject]@{
       Total = $result.Count
       Completed = $completed
