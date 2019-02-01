@@ -348,6 +348,26 @@ function Prepare-AcmAzureCtx {
   Select-AzSubscription -SubscriptionId $SubscriptionId
 }
 
+function Log {
+  param(
+    [Parameter(Mandatory = $true)]
+    $activity,
+
+    $status,
+    $op
+  )
+  $now = Get-Date
+  $ts = $now.ToString('yyyy-MM-dd HH:mm:ss')
+  $msg = "[$($ts)][$($activity)]"
+  if ($status) {
+    $msg += "[$($status)]"
+  }
+  if ($op) {
+    $msg += "[$($op)]"
+  }
+  Write-Host $msg
+}
+
 function ShowProgress {
   param(
     [Parameter(Mandatory = $true)]
@@ -389,16 +409,7 @@ function ShowProgress {
   Write-Progress @args
 
   if (!$nolog) {
-    # Write log at the same time
-    $ts = $now.ToString('yyyy-MM-dd hh:mm:ss')
-    $msg = "[$($ts)][$($activity)]"
-    if ($status) {
-      $msg += "[$($status)]"
-    }
-    if ($op) {
-      $msg += "[$($op)]"
-    }
-    Write-Host $msg
+    Log $activity $status $op
   }
 }
 
@@ -410,11 +421,12 @@ function HideProgress {
 function Wait-AcmJob {
   param($jobs, $startTime, $timeout, $activity, $progId)
 
+  $status = "Waiting jobs to finish..."
   $pargs = @{
     startTime = $startTime
     timeout = $timeout
     activity = $activity
-    status = "Waiting jobs to finish..."
+    status = $status
     id = $progId
   }
   $ids = $jobs.foreach('id')
@@ -433,7 +445,7 @@ function Wait-AcmJob {
     $elapsed = ($(Get-Date) - $startTime).TotalSeconds
     if ($elapsed -ge $Timeout) {
       ShowProgress @pargs
-      Write-Host 'Timed out!'
+      Log $activity $status 'Timed out!'
       break
     }
 
@@ -773,7 +785,7 @@ function Wait-AcmDiagnosticJob {
     $elapsed = ($(Get-Date) - $startTime).TotalSeconds
     if ($elapsed -ge $Timeout) {
       ShowProgress @pargs
-      Write-Host 'Timed out!'
+      Log $activity $status 'Timed out!'
       break
     }
 
@@ -1074,7 +1086,7 @@ Perform test on a cluster of VMs/VM scale sets that has been added to ACM alread
   )
 
   if (!$NoSetup) {
-    Write-Host "Adding cluster to ACM service..."
+    Log "Adding cluster to ACM service..."
     $args = @{
       SubscriptionId = $SubscriptionId
       ResourceGroup = $ResourceGroup
@@ -1087,13 +1099,13 @@ Perform test on a cluster of VMs/VM scale sets that has been added to ACM alread
     Add-AcmCluster @args
   }
 
-  Write-Host "Getting ACM service app configuration..."
+  Log "Getting ACM service app configuration..."
   $app = Get-AcmAppInfo -SubscriptionId $SubscriptionId -ResourceGroup $AcmResourceGroup
   if (!$app['IssuerUrl']) {
     Write-Warning "No authentication configuration is found for the ACM app in $($AcmResourceGroup)!"
   }
 
-  Write-Host "Testing cluster in ACM service..."
+  Log "Testing cluster in ACM service..."
   if ($TestTimeout) {
     $app['Timeout'] = $TestTimeout
   }
