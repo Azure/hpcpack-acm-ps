@@ -410,33 +410,50 @@ function HideProgress {
 function Wait-AcmJob {
   param($jobs, $startTime, $timeout, $activity, $progId)
 
+  $pargs = @{
+    startTime = $startTime
+    timeout = $timeout
+    activity = $activity
+    status = "Waiting jobs to finish..."
+    id = $progId
+  }
   $ids = $jobs.foreach('id')
+  $preCount = $null
+
   while ($true) {
-    $elapsed = ($(Get-Date) - $startTime).TotalSeconds
-    if ($elapsed -ge $Timeout) {
-      break
-    }
     # TODO: Optimize counting?
     $doneJobCount = $(Get-Job -Id $ids).where({ $_.state -in 'Completed', 'Failed', 'Stopped' }).Count
+    $pargs['op'] = "Completed jobs: $($doneJobCount)/$($jobs.Count)"
+
     if ($doneJobCount -eq $ids.Count) {
+      ShowProgress @pargs
       break
     }
-    ShowProgress $startTime $timeout $activity -Status "Waiting jobs to finish..." `
-      -Op "Completed jobs: $($doneJobCount)/$($jobs.Count)" -Id $progId
 
-    # NOTE: DO NOT simply
-    #
-    # Receive-Job $jobs
-    #
-    # because that will implicitly add the output to the return value and thus
-    # pollute the caller's return value.
+    $elapsed = ($(Get-Date) - $startTime).TotalSeconds
+    if ($elapsed -ge $Timeout) {
+      ShowProgress @pargs
+      Write-Host 'Timed out!'
+      break
+    }
 
     $output = Receive-Job $jobs
     if ($output) {
+      ShowProgress @pargs
       Write-Host $output
     }
+    else {
+      if ($preCount -ne $doneJobCount) {
+        ShowProgress @pargs
+      }
+      else {
+        ShowProgress @pargs -nolog
+      }
+    }
+    $preCount = $doneJobCount
     Start-Sleep 1
   }
+
   $output = Receive-Job $jobs
   if ($output) {
     Write-Host $output
