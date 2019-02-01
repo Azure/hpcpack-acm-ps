@@ -737,22 +737,40 @@ Remove a cluster of VMs/VM scale sets from ACM.
 function Wait-AcmDiagnosticJob {
   param($job, $conn, $startTime, $timeout, $activity, $status, $progId)
 
-  $finished = $false
+  $pargs = @{
+    startTime = $startTime
+    timeout = $timeout
+    activity = $activity
+    status = $status
+    id = $progId
+  }
+  $jobState = $null
+
   while ($true) {
+    $pargs['op'] = "Job state: $($job.State)"
+    if ($job.State -in "Finished", "Failed", "Canceled") {
+      ShowProgress @pargs
+      break
+    }
+
     $elapsed = ($(Get-Date) - $startTime).TotalSeconds
     if ($elapsed -ge $Timeout) {
+      ShowProgress @pargs
+      Write-Host 'Timed out!'
       break
     }
-    if ($job.State -in "Finished", "Failed", "Canceled") {
-      $finished = $true
-      break
+
+    if ($jobState -ne $job.State) {
+      ShowProgress @pargs
     }
-    $op = "Diagnostic job state: $($job.State)"
-    ShowProgress $startTime $timeout $activity $status $op $progId
+    else {
+      ShowProgress @pargs -nolog
+    }
+    $jobState = $job.State
     $job = Get-AcmDiagnosticJob -Id $job.Id -Connection $conn
     Start-Sleep 1
   }
-  return $finished
+  return $job
 }
 
 <#
@@ -858,9 +876,9 @@ function Test-AcmCluster {
       ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
       $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $linuxNodeNames -Category 'Prerequisite' -Name 'Intel MPI Installation'
-      $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
-      if (!$finished) {
-        throw "Linux prerequisite installation timed out. Job id: $($job.id)"
+      $job = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
+      if ($job.State -ne 'Finished') {
+        throw "Linux prerequisite installation failed."
       }
     }
 
@@ -869,9 +887,9 @@ function Test-AcmCluster {
       ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
       $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $winNodeNames -Category 'Prerequisite' -Name 'Microsoft MPI Installation'
-      $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
-      if (!$finished) {
-        throw "Windows prerequisite installation timed out. Job id: $($job.id)"
+      $job = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
+      if ($job.State -ne 'Finished') {
+        throw "Windows prerequisite installation timed out."
       }
     }
 
@@ -880,9 +898,9 @@ function Test-AcmCluster {
     ShowProgress $startTime $timelimit $activity -Status $status -id 1
 
     $job = Start-AcmDiagnosticJob -Connection $conn -Nodes $names -Category 'MPI' -Name 'Pingpong'
-    $finished = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
-    if (!$finished) {
-      throw "Test job timed out. Job id: $($job.id)"
+    $job = Wait-AcmDiagnosticJob $job $conn $startTime $timelimit $activity $status -progId 1
+    if ($job.State -ne 'Finished') {
+      throw "Test job failed."
     }
 
     # Finally, get aggreation result
