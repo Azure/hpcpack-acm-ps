@@ -395,9 +395,13 @@ function ShowProgress {
 
   $now = Get-Date
   $elapsed = ($now - $startTime).TotalSeconds
+  $percent = $elapsed * 100 / $timeout
+  if ($percent -gt 100) {
+    $percent = 100
+  }
   $args = @{
     Activity = $activity
-    PercentComplete = $elapsed * 100 / $timeout
+    PercentComplete = $percent
     SecondsRemaining = $timeout - $elapsed
   }
   if ($id) {
