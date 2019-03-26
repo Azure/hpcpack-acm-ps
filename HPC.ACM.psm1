@@ -10,10 +10,7 @@ function Add-AcmVm {
     [string] $storageAccountName,
 
     [Parameter(Mandatory = $true)]
-    [string] $storageAccountRG,
-
-    # NOTE: [switch] type can't be passed in an argument list, which is required by Start-ThreadJob.
-    [bool] $useExistingAgent = $false
+    [string] $storageAccountRG
   )
 
   Write-Host "Enable MSI for VM $($vm.Name)"
@@ -55,41 +52,24 @@ function Add-AcmVm {
     }
   }
 
+  Write-Host "Try to remove existing agent from VM $($vm.Name)"
+  try {
+    Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
+  }
+  catch {}
+
   Write-Host "Install HpcAcmAgent for VM $($vm.Name)"
-  $hasExistingAgent = $false
-  if ($useExistingAgent) {
-    $extensions = $vm.Extensions
-    if ($extensions) {
-      for ($i = 0; $i -lt $extensions.Count; $i++) {
-        if ($extensions[$i].Id -like '*/extensions/HpcAcmAgent') {
-          $hasExistingAgent = $true
-          break
-        }
-      }
-    }
-    Write-Host "VM $($vm.Name) has existing agent: $($hasExistingAgent)"
+  if ($vm.OSProfile.LinuxConfiguration) {
+    $extesionType = "HpcAcmAgent"
   }
   else {
-    Write-Host "Try to remove existing agent from VM $($vm.Name)"
-    try {
-      Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
-    }
-    catch {}
+    # Suppose there're only Linux and Windows
+    $extesionType = "HpcAcmAgentWin"
   }
-
-  if (!$hasExistingAgent) {
-    if ($vm.OSProfile.LinuxConfiguration) {
-      $extesionType = "HpcAcmAgent"
-    }
-    else {
-      # Suppose there're only Linux and Windows
-      $extesionType = "HpcAcmAgentWin"
-    }
-    $result = Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName `
-      -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
-    if (!$result.IsSuccessStatusCode) {
-      throw "Failed installing HpcAcmAgent for VM $($vm.Name)."
-    }
+  $result = Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName `
+    -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
+  if (!$result.IsSuccessStatusCode) {
+    throw "Failed installing HpcAcmAgent for VM $($vm.Name)."
   }
 }
 
@@ -149,10 +129,7 @@ function Add-AcmVmScaleSet {
     [string] $storageAccountName,
 
     [Parameter(Mandatory = $true)]
-    [string] $storageAccountRG,
-
-    # NOTE: [switch] type can't be passed in an argument list, which is required by Start-ThreadJob.
-    [bool] $useExistingAgent = $false
+    [string] $storageAccountRG
   )
 
   Write-Host "Enable MSI for VM Scale Set $($vmss.Name)"
@@ -193,45 +170,28 @@ function Add-AcmVmScaleSet {
     }
   }
 
+  Write-Host "Try to remove existing agent from VM scale set $($vmss.Name)"
+  try {
+    Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
+    Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
+    Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
+  }
+  catch {}
+
   Write-Host "Install HpcAcmAgent for VM Scale Set $($vmss.Name)"
-  $hasExistingAgent = $false
-  if ($useExistingAgent) {
-    $extensions = $vmss.VirtualMachineProfile.ExtensionProfile.Extensions
-    if ($extensions) {
-      for ($i = 0; $i -lt $extensions.Count; $i++) {
-        if ($extensions[$i].Name -eq 'HpcAcmAgent') {
-          $hasExistingAgent = $true
-          break
-        }
-      }
-    }
-    Write-Host "VM scale set $($vmss.Name) has existing agent: $($hasExistingAgent)"
+  if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
+    $extesionType = "HpcAcmAgent"
   }
   else {
-    Write-Host "Try to remove existing agent from VM scale set $($vmss.Name)"
-    try {
-      Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
-      Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
-      Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
-    }
-    catch {}
+    # Suppose there're only Linux and Windows
+    $extesionType = "HpcAcmAgentWin"
   }
-
-  if (!$hasExistingAgent) {
-    if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
-      $extesionType = "HpcAcmAgent"
-    }
-    else {
-      # Suppose there're only Linux and Windows
-      $extesionType = "HpcAcmAgentWin"
-    }
-    Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" `
-      -Type $extesionType -TypeHandlerVersion 1.0
-    Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
-    $result = Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
-    if ($result.Status -ne 'Succeeded') {
-      throw "Failed installing HpcAcmAgent for VM scale set $($vmss.Name)."
-    }
+  Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" `
+    -Type $extesionType -TypeHandlerVersion 1.0
+  Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
+  $result = Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
+  if ($result.Status -ne 'Succeeded') {
+    throw "Failed installing HpcAcmAgent for VM scale set $($vmss.Name)."
   }
 }
 
@@ -547,8 +507,6 @@ function Initialize-AcmCluster {
 
     [switch] $Return,
 
-    [switch] $UseExistingAgent,
-
     [switch] $Uninitialize
   )
 
@@ -609,7 +567,6 @@ function Initialize-AcmCluster {
     }
     else {
       $func = ${function:Add-AcmVm}
-      $args += $UseExistingAgent
     }
     $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func -ArgumentList $args
     $names += $vm.Name
@@ -621,7 +578,6 @@ function Initialize-AcmCluster {
     }
     else {
       $func = ${function:Add-AcmVmScaleSet}
-      $args += $UseExistingAgent
     }
     $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func -ArgumentList $args
     $names += $vmss.Name
@@ -688,9 +644,6 @@ The ID of an Azure subscription containing both the ResourceGroup and AcmResourc
 .PARAMETER Timeout
 The timeout value for adding cluster to Acm. By default, an estimated value will be set based on the number of VMs/VM scale sets in a cluster. A value shorter than necesssary will fail the setup procedure. You could specify a larger value to ensure the success of setup.
 
-.PARAMETER UseExistingAgent
-When adding a VM to ACM, use existing HPC ACM agent if any. By default, exising agent will be uninstalled before installing. This is to ensure the newest version is installed and may also fix problems of a bad installation. But it takes longer time. This switch may save some time on VM setup by reusing existing agent, but has the risk of reusing a bad agent.
-
 .PARAMETER RetainJobs
 Do not remove PowerShell jobs after. This is for checking the job state for debug purpose.
 
@@ -717,8 +670,6 @@ Add a cluster of VMs/VM scale sets to ACM.
     [string] $AcmResourceGroup,
 
     [int] $Timeout,
-
-    [switch] $UseExistingAgent,
 
     [switch] $RetainJobs,
 
@@ -1060,9 +1011,6 @@ The timeout value for performing test on cluster. By default, an estimated value
 .PARAMETER NoSetup
 Do not add cluster to ACM but only do test on it. This is for repeated test on a cluster that already has been added to ACM.
 
-.PARAMETER UseExistingAgent
-When adding a VM to ACM, use existing HPC ACM agent if any. By default, exising agent will be uninstalled before installing. This is to ensure the newest version is installed and may also fix problems of a bad installation. But it takes longer time. This switch may save some time on VM setup by reusing existing agent, but has the risk of reusing a bad agent.
-
 .NOTES
 The command will log a lot to screen. So it's better to redirect them to files. Do it like
 New-AcmTest ... 2>err_log 6>info_log
@@ -1090,9 +1038,7 @@ Perform test on a cluster of VMs/VM scale sets that has been added to ACM alread
 
     [int] $TestTimeout,
 
-    [switch] $NoSetup,
-
-    [switch] $UseExistingAgent
+    [switch] $NoSetup
   )
 
   if (!$NoSetup) {
@@ -1101,7 +1047,6 @@ Perform test on a cluster of VMs/VM scale sets that has been added to ACM alread
       SubscriptionId = $SubscriptionId
       ResourceGroup = $ResourceGroup
       AcmResourceGroup = $AcmResourceGroup
-      UseExistingAgent = $UseExistingAgent
     }
     if ($SetupTimeout) {
       $args['Timeout'] = $SetupTimeout
