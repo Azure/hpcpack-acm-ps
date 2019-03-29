@@ -10,8 +10,13 @@ function Add-AcmVm {
     [string] $storageAccountName,
 
     [Parameter(Mandatory = $true)]
-    [string] $storageAccountRG
+    [string] $storageAccountRG,
+
+    [string] $linuxExtensionUrl,
+    [string] $windowsExtensionUrl
   )
+
+  $devMode = $linuxExtensionUrl -or $windowsExtensionUrl
 
   Write-Host "Enable MSI for VM $($vm.Name)"
   if ($vm.Identity -eq $null -or !($vm.Identity.Type -contains "SystemAssigned")) {
@@ -52,24 +57,85 @@ function Add-AcmVm {
     }
   }
 
-  Write-Host "Try to remove existing agent from VM $($vm.Name)"
-  try {
-    Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
+  $extName = 'HpcAcmAgent'
+  $devExtName = 'HpcAcmAgentDev'
+  $knownExts = @($extName, $devExtName)
+  $foundExts = @()
+  foreach ($ext in $vm.Extensions) {
+    foreach ($name in $knownExts) {
+      if ($ext.Name -eq $name) {
+        $foundExts += $name
+      }
+    }
   }
-  catch {}
+  Write-Host "Found $($foundExts.Count) VM Extensions for VM $($vm.Name): $($foundExts -join ', ')"
 
-  Write-Host "Install HpcAcmAgent for VM $($vm.Name)"
-  if ($vm.OSProfile.LinuxConfiguration) {
-    $extesionType = "HpcAcmAgent"
+  foreach ($ext in $foundExts) {
+    Write-Host "Remove Extension $ext from VM $($vm.Name)"
+    if ($ext -eq $devExtName) {
+      if ($vm.OSProfile.LinuxConfiguration) {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.sh')
+          commandToExecute = "./uninstall.sh"
+          skipDos2Unix = $true
+        }
+        Set-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -ExtensionType CustomScript -Publisher Microsoft.Azure.Extensions -TypeHandlerVersion 2.0 -Name $ext -Settings $settings
+      }
+      else {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.ps1')
+          commandToExecute = "powershell -ExecutionPolicy Unrestricted -File uninstall.ps1"
+        }
+        Set-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -ExtensionType CustomScriptExtension -Publisher Microsoft.Compute -TypeHandlerVersion 1.9 -Name $ext -Settings $settings
+      }
+    }
+    else {
+      Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name $ext -Force
+    }
+  }
+
+  if ($devMode) {
+    $ext = $devExtName
   }
   else {
-    # Suppose there're only Linux and Windows
-    $extesionType = "HpcAcmAgentWin"
+    $ext = $extName
   }
-  $result = Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName `
-    -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name "HpcAcmAgent"
+  Write-Host "Install $ext for VM $($vm.Name)"
+
+  if ($devMode) {
+    if ($vm.OSProfile.LinuxConfiguration) {
+      $settings = @{
+        timestamp = $(Get-Date).Ticks
+        fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/install.sh')
+        commandToExecute = "./install.sh $linuxExtensionUrl"
+        skipDos2Unix = $true
+      }
+      $result = Set-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -ExtensionType CustomScript -Publisher Microsoft.Azure.Extensions -TypeHandlerVersion 2.0 -Name $ext -Settings $settings
+    }
+    else {
+      $settings = @{
+        timestamp = $(Get-Date).Ticks
+        fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/install.ps1')
+        commandToExecute = "powershell -ExecutionPolicy Unrestricted -File install.ps1 $windowsExtensionUrl"
+      }
+      $result = Set-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -ExtensionType CustomScriptExtension -Publisher Microsoft.Compute -TypeHandlerVersion 1.9 -Name $ext -Settings $settings
+    }
+  }
+  else {
+    if ($vm.OSProfile.LinuxConfiguration) {
+      $extesionType = "HpcAcmAgent"
+    }
+    else {
+      # Suppose there're only Linux and Windows
+      $extesionType = "HpcAcmAgentWin"
+    }
+    $result = Set-AzVMExtension -Publisher "Microsoft.HpcPack" -ExtensionType $extesionType -ResourceGroupName $vm.ResourceGroupName `
+      -TypeHandlerVersion 1.0 -VMName $vm.Name -Location $vm.Location -Name $ext
+  }
   if (!$result.IsSuccessStatusCode) {
-    throw "Failed installing HpcAcmAgent for VM $($vm.Name)."
+    throw "Failed installing $ext for VM $($vm.Name)."
   }
 }
 
@@ -85,12 +151,41 @@ function Remove-AcmVm {
     [string] $storageAccountRG
   )
 
-  Write-Host "Uninstall HpcAcmAgent for VM $($vm.Name)"
-  try {
-    Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name "HpcAcmAgent" -Force
+  $extName = 'HpcAcmAgent'
+  $devExtName = 'HpcAcmAgentDev'
+  $knownExts = @($extName, $devExtName)
+  $foundExts = @()
+  foreach ($ext in $vm.Extensions) {
+    foreach ($name in $knownExts) {
+      if ($ext.Name -eq $name) {
+        $foundExts += $name
+      }
+    }
   }
-  catch {
-    Write-Host "Caught exception: $($_)"
+  Write-Host "Found $($foundExts.Count) VM Extensions for VM $($vm.Name): $($foundExts -join ', ')"
+
+  foreach ($ext in $foundExts) {
+    Write-Host "Remove Extension $ext from VM $($vm.Name)"
+    if ($ext -eq $devExtName) {
+      if ($vm.OSProfile.LinuxConfiguration) {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.sh')
+          commandToExecute = "./uninstall.sh"
+          skipDos2Unix = $true
+        }
+        Set-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -ExtensionType CustomScript -Publisher Microsoft.Azure.Extensions -TypeHandlerVersion 2.0 -Name $ext -Settings $settings
+      }
+      else {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.ps1')
+          commandToExecute = "powershell -ExecutionPolicy Unrestricted -File uninstall.ps1"
+        }
+        Set-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Location $vm.Location -ExtensionType CustomScriptExtension -Publisher Microsoft.Compute -TypeHandlerVersion 1.9 -Name $ext -Settings $settings
+      }
+    }
+    Remove-AzVMExtension -ResourceGroupName $vm.ResourceGroupName -VMName $vm.Name -Name $ext -Force
   }
 
   Write-Host "Remove role 'Storage Account Contributor' from VM $($vm.Name)"
@@ -129,8 +224,13 @@ function Add-AcmVmScaleSet {
     [string] $storageAccountName,
 
     [Parameter(Mandatory = $true)]
-    [string] $storageAccountRG
+    [string] $storageAccountRG,
+
+    [string] $linuxExtensionUrl,
+    [string] $windowsExtensionUrl
   )
+
+  $devMode = $linuxExtensionUrl -or $windowsExtensionUrl
 
   Write-Host "Enable MSI for VM Scale Set $($vmss.Name)"
   if ($vmss.Identity -eq $null -or !($vmss.Identity.Type -contains "SystemAssigned")) {
@@ -141,7 +241,7 @@ function Add-AcmVmScaleSet {
     Write-Host "The VMSS $($vmss.Name) already has an System Assigned Identity"
   }
 
-  # Update $vm for new $vm.Identity.PrincipalId
+  # Update $vmss for new $vmss.Identity.PrincipalId
   $vmss = Get-AzVmss -Name $vmss.Name -ResourceGroupName $vmss.ResourceGroupName
 
   Write-Host "Add role 'reader' to VMSS $($vmss.Name)"
@@ -170,28 +270,102 @@ function Add-AcmVmScaleSet {
     }
   }
 
-  Write-Host "Try to remove existing agent from VM scale set $($vmss.Name)"
-  try {
-    Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
-    Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
+  $extName = 'HpcAcmAgent'
+  $devExtName = 'HpcAcmAgentDev'
+  $knownExts = @($extName, $devExtName)
+  $foundExts = @()
+  foreach ($ext in $vmss.VirtualMachineProfile.ExtensionProfile.Extensions) {
+    foreach ($name in $knownExts) {
+      if ($ext.Name -eq $name) {
+        $foundExts += $name
+      }
+    }
+  }
+  Write-Host "Found $($foundExts.Count) VM Extensions for VM scale set $($vmss.Name): $($foundExts -join ', ')"
+
+  foreach ($ext in $foundExts) {
+    Write-Host "Remove Extension $ext from VM scale set $($vmss.Name)"
+
+    # Remove-AzVmssExtension simply removes the element of extension by name from
+    # array of $vmss.VirtualMachineProfile.ExtensionProfile.Extensions, while
+    # Update-AzVmss does the effective work. Remember: only one custom script
+    # extension is allowed on one VM/VM scale set.
+    Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext
+
+    if ($ext -eq $devExtName) {
+      if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.sh')
+          commandToExecute = "./uninstall.sh"
+          skipDos2Unix = $true
+        }
+        Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext -Setting $settings `
+          -Type CustomScript -Publisher Microsoft.Azure.Extensions -TypeHandlerVersion 2.0
+      }
+      else {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.ps1')
+          commandToExecute = "powershell -ExecutionPolicy Unrestricted -File uninstall.ps1"
+        }
+        Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext -Setting $settings `
+          -Type CustomScriptExtension -Publisher Microsoft.Compute -TypeHandlerVersion 1.9
+      }
+    }
+  }
+  Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
+  if ($vmss.UpgradePolicy.Mode -eq 'Manual') {
     Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
   }
-  catch {}
 
-  Write-Host "Install HpcAcmAgent for VM Scale Set $($vmss.Name)"
-  if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
-    $extesionType = "HpcAcmAgent"
+  if ($devMode) {
+    $ext = $devExtName
   }
   else {
-    # Suppose there're only Linux and Windows
-    $extesionType = "HpcAcmAgentWin"
+    $ext = $extName
   }
-  Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent" -Publisher "Microsoft.HpcPack" `
-    -Type $extesionType -TypeHandlerVersion 1.0
+  Write-Host "Install $ext for VM Scale Set $($vmss.Name)"
+
+  if ($devMode) {
+    Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext
+    if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
+      $settings = @{
+        timestamp = $(Get-Date).Ticks
+        fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/install.sh')
+        commandToExecute = "./install.sh $linuxExtensionUrl"
+        skipDos2Unix = $true
+      }
+      Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext -Setting $settings `
+        -Type CustomScript -Publisher Microsoft.Azure.Extensions -TypeHandlerVersion 2.0
+    }
+    else {
+      $settings = @{
+        timestamp = $(Get-Date).Ticks
+        fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/install.ps1')
+        commandToExecute = "powershell -ExecutionPolicy Unrestricted -File install.ps1 $windowsExtensionUrl"
+      }
+      Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext -Setting $settings `
+        -Type CustomScriptExtension -Publisher Microsoft.Compute -TypeHandlerVersion 1.9
+    }
+  }
+  else {
+    if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
+      $extesionType = "HpcAcmAgent"
+    }
+    else {
+      # Suppose there're only Linux and Windows
+      $extesionType = "HpcAcmAgentWin"
+    }
+    Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext -Publisher "Microsoft.HpcPack" `
+      -Type $extesionType -TypeHandlerVersion 1.0
+  }
   Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
-  $result = Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
-  if ($result.Status -ne 'Succeeded') {
-    throw "Failed installing HpcAcmAgent for VM scale set $($vmss.Name)."
+  if ($vmss.UpgradePolicy.Mode -eq 'Manual') {
+    $result = Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
+    if ($result.Status -ne 'Succeeded') {
+      throw "Failed installing $ext for VM scale set $($vmss.Name)."
+    }
   }
 }
 
@@ -207,14 +381,47 @@ function Remove-AcmVmScaleSet {
     [string] $storageAccountRG
   )
 
-  Write-Host "Uninstall HpcAcmAgent for VM Scale Set $($vmss.Name)"
-  try {
-    Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name "HpcAcmAgent"
-    Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
-    Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
+  $extName = 'HpcAcmAgent'
+  $devExtName = 'HpcAcmAgentDev'
+  $knownExts = @($extName, $devExtName)
+  $foundExts = @()
+  foreach ($ext in $vmss.VirtualMachineProfile.ExtensionProfile.Extensions) {
+    foreach ($name in $knownExts) {
+      if ($ext.Name -eq $name) {
+        $foundExts += $name
+      }
+    }
   }
-  catch {
-    Write-Host "Caught exception: $($_)"
+  Write-Host "Found $($foundExts.Count) VM Extensions for VM scale set $($vmss.Name): $($foundExts -join ', ')"
+
+  foreach ($ext in $foundExts) {
+    Write-Host "Remove Extension $ext from VM scale set $($vmss.Name)"
+    Remove-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext
+    if ($ext -eq $devExtName) {
+      if ($vmss.VirtualMachineProfile.OsProfile.LinuxConfiguration) {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.sh')
+          commandToExecute = "./uninstall.sh"
+          skipDos2Unix = $true
+        }
+        Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext -Setting $settings `
+          -Type CustomScript -Publisher Microsoft.Azure.Extensions -TypeHandlerVersion 2.0
+      }
+      else {
+        $settings = @{
+          timestamp = $(Get-Date).Ticks
+          fileUris = @('https://raw.githubusercontent.com/coin8086/node-manager-deployer/master/uninstall.ps1')
+          commandToExecute = "powershell -ExecutionPolicy Unrestricted -File uninstall.ps1"
+        }
+        Add-AzVmssExtension -VirtualMachineScaleSet $vmss -Name $ext -Setting $settings `
+          -Type CustomScriptExtension -Publisher Microsoft.Compute -TypeHandlerVersion 1.9
+      }
+    }
+  }
+  Update-AzVmss -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -VirtualMachineScaleSet $vmss
+  if ($vmss.UpgradePolicy.Mode -eq 'Manual') {
+    Update-AzVmssInstance -ResourceGroupName $vmss.ResourceGroupName -VMScaleSetName $vmss.Name -InstanceId "*"
   }
 
   Write-Host "Remove role 'Storage Account Contributor' from VMSS $($vmss.Name)"
@@ -507,7 +714,11 @@ function Initialize-AcmCluster {
 
     [switch] $Return,
 
-    [switch] $Uninitialize
+    [switch] $Uninitialize,
+
+    [string] $LinuxExtensionUrl,
+
+    [string] $WindowsExtensionUrl
   )
 
   $startTime = Get-Date
@@ -567,6 +778,7 @@ function Initialize-AcmCluster {
     }
     else {
       $func = ${function:Add-AcmVm}
+      $args += @($LinuxExtensionUrl, $WindowsExtensionUrl)
     }
     $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func -ArgumentList $args
     $names += $vm.Name
@@ -578,6 +790,7 @@ function Initialize-AcmCluster {
     }
     else {
       $func = ${function:Add-AcmVmScaleSet}
+      $args += @($LinuxExtensionUrl, $WindowsExtensionUrl)
     }
     $jobs += Start-ThreadJob -ThrottleLimit $ConcurrentLimit -ScriptBlock $func -ArgumentList $args
     $names += $vmss.Name
@@ -650,6 +863,12 @@ Do not remove PowerShell jobs after. This is for checking the job state for debu
 .PARAMETER Return
 Return the result. By default, the function returns nothing.
 
+.PARAMETER LinuxExtensionUrl
+URL for the Linux VM Extension. The file name in the URL must match pattern "^.+\-\d+\.\d+\.\d+\.\d+\.zip$". This option is internal for development.
+
+.PARAMETER WindowsExtensionUrl
+URL for the Windows VM Extension. The file name in the URL must match pattern "^.+\-\d+\.\d+\.\d+\.\d+\.zip$". This option is internal for development.
+
 .NOTES
 The command will log a lot to screen. So it's better to redirect them to files. Do it like
 Add-AcmCluster ... 2>err_log 6>info_log
@@ -673,7 +892,11 @@ Add a cluster of VMs/VM scale sets to ACM.
 
     [switch] $RetainJobs,
 
-    [switch] $Return
+    [switch] $Return,
+
+    [string] $LinuxExtensionUrl,
+
+    [string] $WindowsExtensionUrl
   )
   Initialize-AcmCluster @PSBoundParameters
 }
@@ -1011,6 +1234,12 @@ The timeout value for performing test on cluster. By default, an estimated value
 .PARAMETER NoSetup
 Do not add cluster to ACM but only do test on it. This is for repeated test on a cluster that already has been added to ACM.
 
+.PARAMETER LinuxExtensionUrl
+URL for the Linux VM Extension. The file name in the URL must match pattern "^.+\-\d+\.\d+\.\d+\.\d+\.zip$". This option is internal for development.
+
+.PARAMETER WindowsExtensionUrl
+URL for the Windows VM Extension. The file name in the URL must match pattern "^.+\-\d+\.\d+\.\d+\.\d+\.zip$". This option is internal for development.
+
 .NOTES
 The command will log a lot to screen. So it's better to redirect them to files. Do it like
 New-AcmTest ... 2>err_log 6>info_log
@@ -1038,7 +1267,11 @@ Perform test on a cluster of VMs/VM scale sets that has been added to ACM alread
 
     [int] $TestTimeout,
 
-    [switch] $NoSetup
+    [switch] $NoSetup,
+
+    [string] $LinuxExtensionUrl,
+
+    [string] $WindowsExtensionUrl
   )
 
   if (!$NoSetup) {
